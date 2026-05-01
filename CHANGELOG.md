@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.0](https://github.com/tmdgusya/roach-pi/compare/v1.16.0...v1.17.0) (2026-05-01)
+
+### Features
+
+* **plan-progress:** add content-based fallback for non-standard plan paths ([2cf58fb](https://github.com/tmdgusya/roach-pi/commit/2cf58fba9eb67506dec5565c5de169320f3be143))
+
 ## [1.16.0](https://github.com/tmdgusya/roach-pi/compare/v1.15.0...v1.16.0) (2026-05-01)
 
 ### Features
