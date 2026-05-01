@@ -13,13 +13,21 @@
       "extensions/session-loop/index.ts",
       "extensions/autonomous-dev/index.ts",
       "extensions/fff-search/index.ts",
-      "extensions/workspace-memory/index.ts"
+      "extensions/workspace-memory/index.ts",
+      "node_modules/@code-yeongyu/pi-nested-agents-md/src/index.ts",
+      "node_modules/pi-lsp-client/src/index.ts"
     ]
   },
   "dependencies": {
+    "@code-yeongyu/pi-nested-agents-md": "github:code-yeongyu/pi-nested-agents-md",
     "@ff-labs/fff-node": "0.6.2-nightly.acd2f0c",
-    "@sinclair/typebox": "^0.34.49"
+    "@sinclair/typebox": "^0.34.49",
+    "pi-lsp-client": "github:code-yeongyu/pi-lsp-client"
   },
+  "bundledDependencies": [
+    "@code-yeongyu/pi-nested-agents-md",
+    "pi-lsp-client"
+  ],
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
