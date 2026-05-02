@@ -7,7 +7,7 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "latest",
+    "@mariozechner/pi-coding-agent": "^0.72.1",
     "@sinclair/typebox": "^0.34.49"
   },
   "devDependencies": {
@@ -16,6 +16,8 @@
     "vitest": "^1.0.0"
   },
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }
