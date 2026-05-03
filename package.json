@@ -1,6 +1,6 @@
 {
   "name": "pi-engineering-discipline-extension",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "Advanced extension suite for pi-coding-agent, providing agentic harness and HUD dashboard.",
   "keywords": [
     "pi-package"
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@code-yeongyu/pi-nested-agents-md": "github:code-yeongyu/pi-nested-agents-md",
-    "@ff-labs/fff-node": "0.6.2-nightly.acd2f0c",
+    "@ff-labs/fff-node": "^0.6.4",
     "@sinclair/typebox": "^0.34.49",
     "pi-lsp-client": "github:code-yeongyu/pi-lsp-client"
   },

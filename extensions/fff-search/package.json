@@ -1,6 +1,6 @@
 {
   "name": "pi-fff-search",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "FFF-powered search engine integration for ROACH PI",
   "type": "module",
   "scripts": {
