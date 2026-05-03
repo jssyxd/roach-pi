@@ -18,6 +18,7 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
 
 vi.mock("@mariozechner/pi-tui", () => ({
   Text: class MockText {},
+  truncateToWidth: (text: string) => text,
 }));
 
 vi.mock("@mariozechner/pi-ai", () => ({
@@ -1054,5 +1055,77 @@ describe("No Global State File", () => {
       { cwd: "." } as any
     );
     expect(result?.systemPrompt).not.toContain("Active Workflow:");
+  });
+
+  it("session_start reconstructs completed plan progress from the active session branch", async () => {
+    const { mockPi, events } = createMockPi();
+    extension(mockPi);
+
+    const handlers = events.get("session_start");
+    expect(handlers?.length).toBeGreaterThan(0);
+
+    const planMarkdown = [
+      "# Replay Plan",
+      "",
+      "**Goal:** Rebuild progress on reload",
+      "",
+      "---",
+      "",
+      "### Task 1: Replay mixed chain",
+      "",
+      "**Dependencies:** None",
+      "**Files:**",
+      "- Modify: `extensions/agentic-harness/index.ts`",
+      "",
+      "- [ ] **Step 1: Reconstruct**",
+      "",
+      "Run: `npm test -- --run tests/extension.test.ts`",
+      "Expected: pass",
+      "",
+    ].join("\n");
+    const subagentArgs = {
+      chain: [
+        { agent: "plan-compliance", task: "check", planTaskId: 1 },
+        { agent: "plan-worker", task: "work", planTaskId: 1 },
+        { agent: "plan-validator", task: "validate", planTaskId: 1 },
+      ],
+    };
+
+    let footerFactory: any;
+    await handlers![0]({ type: "session_start", reason: "reload" } as any, {
+      cwd: ".",
+      ui: {
+        setHeader: vi.fn(),
+        setFooter: (fn: any) => { footerFactory = fn; },
+        notify: vi.fn(),
+        setWorkingVisible: vi.fn(),
+      },
+      sessionManager: {
+        getBranch: () => [
+          { type: "message", message: { role: "assistant", content: [{ type: "text", text: planMarkdown }] } },
+          { type: "message", message: { role: "assistant", content: [{ type: "toolCall", id: "subagent-call", name: "subagent", arguments: subagentArgs }] } },
+          { type: "message", message: { role: "toolResult", toolCallId: "subagent-call", toolName: "subagent", content: [{ type: "text", text: "PASS" }], isError: false } },
+        ],
+      },
+      model: { name: "test" },
+      getContextUsage: () => undefined,
+    } as any);
+
+    expect(footerFactory).toBeTypeOf("function");
+
+    const theme = {
+      fg: (_color: string, text: string) => text,
+      bold: (text: string) => text,
+    } as any;
+    const footerData = { getGitBranch: () => undefined } as any;
+    const footer = footerFactory({ requestRender: vi.fn() }, theme, footerData);
+    const rendered = footer.render(120).join("\n");
+
+    expect(rendered).toContain("Rebuild progress on reload");
+    expect(rendered).toContain("1/1");
+    expect(rendered).toContain("✓ Replay mixed chain");
+    expect(rendered).not.toContain("running");
+
+    footer.dispose?.();
   });
 });

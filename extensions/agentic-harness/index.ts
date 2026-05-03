@@ -24,6 +24,7 @@ import {
   getToolExecutionArgs,
   loadPlanFromAssistantMessageEnd,
   loadPlanFromToolResultEvent,
+  reconstructPlanProgressFromSessionEntries,
   reloadPlanFromSubagentArgs,
   startPlanSubagentTasks,
 } from "./plan-progress-events.js";
@@ -1641,6 +1642,13 @@ Do not start multi-step implementation without a clear understanding of what the
     planTaskIdsByToolCallId.clear();
     sessionPlanPaths.clear();
     planProgress.clear();
+    const branchEntries = ctx.sessionManager?.getBranch?.() ?? [];
+    await reconstructPlanProgressFromSessionEntries(
+      planProgress,
+      branchEntries,
+      ctx.cwd,
+      sessionPlanPaths,
+    );
     workingVisibility?.restore();
     workingVisibility = new WorkingVisibilityController(
       planProgress,
