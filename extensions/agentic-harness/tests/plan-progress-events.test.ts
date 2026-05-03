@@ -465,6 +465,26 @@ describe("plan progress subagent task tracking", () => {
     expect(tracker.getProgress()).toMatchObject({ completed: 1, running: 0, pending: 2 });
   });
 
+  it("completes a task when a mixed compliance-worker-validator chain succeeds", () => {
+    const tracker = loadTrackingPlan();
+    const args = {
+      chain: [
+        { agent: "plan-compliance", task: "check compliance", planFile: PLAN_PATH, planTaskId: 1 },
+        { agent: "plan-worker", task: "implement task", planFile: PLAN_PATH, planTaskId: 1 },
+        { agent: "plan-validator", task: "validate", planFile: PLAN_PATH, planTaskId: 1 },
+      ],
+    };
+
+    const matchedIds = startPlanSubagentTasks(tracker, args);
+
+    expect(matchedIds).toEqual([1, 1, 1]);
+    expect(tracker.getProgress()).toMatchObject({ running: 1, completed: 0, pending: 2 });
+
+    completePlanSubagentTasks(tracker, args, true, matchedIds);
+
+    expect(tracker.getProgress()).toMatchObject({ completed: 1, running: 0, pending: 2 });
+  });
+
   it("marks a task failed when any plan stage with planTaskId fails", () => {
     const tracker = loadTrackingPlan();
     const matchedIds = startPlanSubagentTasks(tracker, {

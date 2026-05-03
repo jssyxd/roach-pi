@@ -264,7 +264,7 @@ function planTaskId(item: Record<string, unknown>): number | null {
 
 function shouldCompleteOnSuccess(args: unknown): boolean {
   const items = subagentItemRecords(args);
-  return items.length > 0 && items.every((item) => item.agent === "plan-validator");
+  return items.some((item) => item.agent === "plan-validator");
 }
 
 export function startPlanSubagentTasks(
