@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.0](https://github.com/tmdgusya/roach-pi/compare/v1.20.1...v1.21.0) (2026-05-03)
+
+### Features
+
+* add Powerline-style UI layer to agentic-harness ([ef3e804](https://github.com/tmdgusya/roach-pi/commit/ef3e8045d09fbd5b0da6e74c2925d1c91e529a71))
+* **subagent:** add async background execution, status/interrupt, completion notification, live progress ([a9e4d50](https://github.com/tmdgusya/roach-pi/commit/a9e4d50acf0f04bc48c9898ab3926ff01a7cbfa7))
+
+### Bug Fixes
+
+* **memory:** cap recalled prompt context size ([586e1db](https://github.com/tmdgusya/roach-pi/commit/586e1db9ca9374f5aed426a8347392ea2a69a776))
+
+### Miscellaneous
+
+* checkpoint outstanding workspace updates ([4706197](https://github.com/tmdgusya/roach-pi/commit/4706197db61142ca5d0da03a2245c1d85d040a50))
+
+### Tests
+
+* **memory:** cover recalled prompt size caps ([57ec7be](https://github.com/tmdgusya/roach-pi/commit/57ec7be0450cbdf5e6656eb0568f1abd583d1c4f))
+* **memory:** verify bounded system prompt injection ([56d7dae](https://github.com/tmdgusya/roach-pi/commit/56d7dae43ba4805014d0b39258cbf1f13a9bfeed))
+
 ## [1.20.1](https://github.com/tmdgusya/roach-pi/compare/v1.20.0...v1.20.1) (2026-05-03)
 
 ### Bug Fixes
