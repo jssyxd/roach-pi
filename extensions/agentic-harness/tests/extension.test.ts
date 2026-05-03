@@ -18,14 +18,20 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
 
 vi.mock("@mariozechner/pi-tui", () => ({
   Text: class MockText {},
-  truncateToWidth: (text: string) => text,
+  truncateToWidth: (text: string, width?: number) => typeof width === "number" ? text.slice(0, width) : text,
+  visibleWidth: (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "").length,
 }));
 
 vi.mock("@mariozechner/pi-ai", () => ({
   complete: vi.fn(),
 }));
 
+vi.mock("../ui-settings.js", () => ({
+  resolveAgenticUiSettings: vi.fn(() => ({ footerPreset: "compact" })),
+}));
+
 import extension from "../index.js";
+import { resolveAgenticUiSettings } from "../ui-settings.js";
 
 const originalSubagentEnv = {
   PI_SUBAGENT_DEPTH: process.env.PI_SUBAGENT_DEPTH,
@@ -34,6 +40,7 @@ const originalSubagentEnv = {
   PI_SUBAGENT_PREVENT_CYCLES: process.env.PI_SUBAGENT_PREVENT_CYCLES,
   PI_TEAM_WORKER: process.env.PI_TEAM_WORKER,
   PI_ENABLE_TEAM_MODE: process.env.PI_ENABLE_TEAM_MODE,
+  PI_AGENTIC_MICROCOMPACTION: process.env.PI_AGENTIC_MICROCOMPACTION,
 };
 
 beforeEach(() => {
@@ -42,6 +49,7 @@ beforeEach(() => {
   delete process.env.PI_SUBAGENT_STACK;
   delete process.env.PI_SUBAGENT_PREVENT_CYCLES;
   delete process.env.PI_TEAM_WORKER;
+  delete process.env.PI_AGENTIC_MICROCOMPACTION;
   process.env.PI_ENABLE_TEAM_MODE = "1";
 });
 
@@ -249,6 +257,10 @@ describe("Extension Registration", () => {
     expect(commands.has("ultraplan")).toBe(true);
     expect(commands.has("ask")).toBe(true);
     expect(commands.has("reset-phase")).toBe(true);
+    expect(commands.has("welcome")).toBe(true);
+    expect(commands.has("stash-save")).toBe(true);
+    expect(commands.has("stash-clear")).toBe(true);
+    expect(commands.has("stash-restore")).toBe(true);
   });
 
   it("should NOT register ask command in subagent context", () => {
@@ -281,6 +293,57 @@ describe("Extension Registration", () => {
     expect(events.has("tool_result")).toBe(true);
     expect(events.has("tool_call")).toBe(true);
     expect(events.has("user_bash")).toBe(true);
+  });
+
+  it("should leave context unchanged by default", async () => {
+    const { mockPi, events } = createMockPi();
+    extension(mockPi);
+
+    const handler = events.get("context")?.at(-1);
+    expect(handler).toBeDefined();
+    const result = await handler(
+      {
+        type: "context",
+        messages: [
+          {
+            role: "toolResult",
+            toolName: "bash",
+            content: [{ type: "text", text: "a".repeat(5000) }],
+            isError: false,
+            timestamp: Date.now() - 2 * 60 * 60 * 1000,
+          },
+        ],
+      },
+      {},
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("should microcompact context only when explicitly enabled", async () => {
+    process.env.PI_AGENTIC_MICROCOMPACTION = "1";
+    const { mockPi, events } = createMockPi();
+    extension(mockPi);
+
+    const handler = events.get("context")?.at(-1);
+    expect(handler).toBeDefined();
+    const result = await handler(
+      {
+        type: "context",
+        messages: [
+          {
+            role: "toolResult",
+            toolName: "bash",
+            content: [{ type: "text", text: "a".repeat(5000) }],
+            isError: false,
+            timestamp: Date.now() - 2 * 60 * 60 * 1000,
+          },
+        ],
+      },
+      {},
+    );
+
+    expect(result?.messages[0].content[0].text).toBe("[Compacted] bash result");
   });
 });
 
@@ -1055,6 +1118,76 @@ describe("No Global State File", () => {
       { cwd: "." } as any
     );
     expect(result?.systemPrompt).not.toContain("Active Workflow:");
+  });
+
+  it("passes resolved UI settings to the custom footer", async () => {
+    (resolveAgenticUiSettings as any).mockClear();
+    const { mockPi, events } = createMockPi();
+    extension(mockPi);
+
+    const sessionStart = events.get("session_start")?.[0];
+    expect(sessionStart).toBeTypeOf("function");
+
+    const setFooter = vi.fn();
+    const ctx: any = {
+      cwd: "/tmp/project",
+      hasUI: true,
+      model: { name: "test-model" },
+      getContextUsage: () => ({ tokens: 1, contextWindow: 10, percent: 10 }),
+      ui: {
+        setHeader: vi.fn(),
+        setFooter,
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+        setWorkingVisible: vi.fn(),
+        notify: vi.fn(),
+      },
+      sessionManager: { getEntries: () => [], getBranch: () => [] },
+    };
+
+    await sessionStart({ reason: "startup" }, ctx);
+
+    expect(resolveAgenticUiSettings).toHaveBeenCalledWith({ cwd: "/tmp/project" });
+    expect(setFooter).toHaveBeenCalledTimes(1);
+    const factory = setFooter.mock.calls[0][0];
+    const theme = {
+      fg: (_color: string, text: string) => text,
+      bold: (text: string) => text,
+    } as any;
+    const footer = factory({ requestRender: vi.fn() }, theme, {
+      getGitBranch: () => "main",
+      getExtensionStatuses: () => new Map(),
+      getAvailableProviderCount: () => 1,
+      onBranchChange: () => () => {},
+    });
+
+    expect(footer.render(100).length).toBe(2);
+    footer.dispose?.();
+  });
+
+  it("installs the welcome header exactly once on session_start", async () => {
+    const { mockPi, events } = createMockPi();
+    extension(mockPi);
+
+    const handlers = events.get("session_start");
+    expect(handlers?.length).toBeGreaterThan(0);
+
+    const setHeader = vi.fn();
+    await handlers![0]({ type: "session_start" } as any, {
+      cwd: ".",
+      ui: {
+        setHeader,
+        setFooter: vi.fn(),
+        notify: vi.fn(),
+        setWorkingVisible: vi.fn(),
+      },
+      sessionManager: { getBranch: () => [] },
+      model: { name: "test" },
+      getContextUsage: () => undefined,
+    } as any);
+
+    expect(setHeader).toHaveBeenCalledTimes(1);
+    expect(setHeader.mock.calls[0][0]).toBeTypeOf("function");
   });
 
   it("session_start reconstructs completed plan progress from the active session branch", async () => {

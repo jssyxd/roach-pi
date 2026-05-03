@@ -1,8 +1,11 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createBashTool, isToolCallEventType, keyHint, keyText, rawKeyHint } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import { createBashTool, isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import { Type, type TUnsafe } from "@sinclair/typebox";
 import { RoachFooter, type CacheStats, type ActiveTools } from "./footer.js";
+import { resolveAgenticUiSettings } from "./ui-settings.js";
+import { registerWelcomeCommand, showWelcomeHeader } from "./welcome-ui.js";
+import { registerEditorStashCommands } from "./editor-stash.js";
+import { installEditorComposition } from "./editor-composition.js";
 import { homedir } from "os";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -24,8 +27,10 @@ import { WorkingVisibilityController } from "./working-visibility.js";
 import {
   completePlanSubagentTasks,
   detectMilestonesFromToolResult,
+  extractMilestonePathsFromArgs,
   extractPlanPathsFromArgs,
   getToolExecutionArgs,
+  startMilestonesFromSubagentArgs,
   loadMilestonesFromAssistantMessage,
   loadPlanFromAssistantMessageEnd,
   loadPlanFromToolResultEvent,
@@ -95,7 +100,6 @@ function isMicrocompactionEnabled(): boolean {
 const toolCallArgsById = new Map<string, Record<string, unknown>>();
 const planTaskIdsByToolCallId = new Map<string, number[]>();
 
-// Track plan file paths written in this session (for content-based fallback detection)
 const sessionPlanPaths = new Set<string>();
 let workingVisibility: WorkingVisibilityController | null = null;
 
@@ -1685,7 +1689,6 @@ Do not start multi-step implementation without a clear understanding of what the
 
     ctx.ui.notify("Settings updated — quietStartup is now true. Restart pi to see the effect.", "info");
 
-    // Ask to star the repository if gh is available
     try {
       const { execSync } = await import("child_process");
       execSync("gh auth status", { stdio: "pipe", timeout: 3000 });
@@ -1725,6 +1728,9 @@ Do not start multi-step implementation without a clear understanding of what the
       ctx.ui.notify("Workflow phase reset to idle.", "info");
     },
   });
+
+  registerWelcomeCommand(pi);
+  registerEditorStashCommands(pi);
 
   pi.registerCommand("team", {
     description:
@@ -1799,22 +1805,9 @@ Do not start multi-step implementation without a clear understanding of what the
           planTaskIdsByToolCallId.set(event.toolCallId, matchedTaskIds);
         }
 
-        const agentName = typeof args.agent === "string" ? args.agent : "";
-        const isPlanWorker = agentName === "plan-worker" || agentName === "plan-compliance";
-        const planPaths = extractPlanPathsFromArgs(args);
-        if (planPaths.length > 0) {
-          milestoneTracker.mergeFromPaths(planPaths);
-          if (isPlanWorker) {
-            for (const planPath of planPaths) {
-              const extracted = extractMilestoneId(planPath);
-              if (extracted) {
-                const milestone = milestoneTracker.getMilestone(extracted.id);
-                if (milestone && milestone.status === "pending") {
-                  milestoneTracker.startMilestone(extracted.id);
-                }
-              }
-            }
-          }
+        const startedMilestones = startMilestonesFromSubagentArgs(milestoneTracker, args);
+        if (startedMilestones.length > 0) {
+          persistProgressSnapshot(ctx);
         }
       }
     }
@@ -1837,16 +1830,16 @@ Do not start multi-step implementation without a clear understanding of what the
         if (hasValidator && planProgress.hasPlan()) {
           const progress = planProgress.getProgress();
           if (success && progress.completed === progress.total) {
-            const planPaths = extractPlanPathsFromArgs(args);
-            for (const planPath of planPaths) {
+            const milestonePaths = [...extractPlanPathsFromArgs(args), ...extractMilestonePathsFromArgs(args)];
+            for (const planPath of milestonePaths) {
               const extracted = extractMilestoneId(planPath);
               if (extracted) {
                 milestoneTracker.completeMilestone(extracted.id, true);
               }
             }
           } else if (!success) {
-            const planPaths = extractPlanPathsFromArgs(args);
-            for (const planPath of planPaths) {
+            const milestonePaths = [...extractPlanPathsFromArgs(args), ...extractMilestonePathsFromArgs(args)];
+            for (const planPath of milestonePaths) {
               const extracted = extractMilestoneId(planPath);
               if (extracted) {
                 milestoneTracker.completeMilestone(extracted.id, false);
@@ -1933,46 +1926,20 @@ Do not start multi-step implementation without a clear understanding of what the
     );
     workingVisibility.start();
 
-    ctx.ui.setHeader((_tui, theme) => {
-      const banner = [
-        "██████╗  ██████╗  █████╗  ██████╗██╗  ██╗    ██████╗ ██╗",
-        "██╔══██╗██╔═══██╗██╔══██╗██╔════╝██║  ██║    ██╔══██╗██║",
-        "██████╔╝██║   ██║███████║██║     ███████║    ██████╔╝██║",
-        "██╔══██╗██║   ██║██╔══██║██║     ██╔══██║    ██╔═══╝ ██║",
-        "██║  ██║╚██████╔╝██║  ██║╚██████╗██║  ██║    ██║     ██║",
-        "╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚═╝     ╚═╝",
-      ].map(line => theme.bold(theme.fg("accent", line))).join("\n");
+    showWelcomeHeader(ctx.ui);
 
-      const tagline = theme.fg("dim", "Engineering Discipline Extension");
-
-      const tips = [
-        "Use /plan to generate a structured implementation plan after clarifying.",
-        "Use /ultraplan for complex tasks that need multi-agent review.",
-        "Use /reset-phase if you want to switch from one workflow to another.",
-      ];
-      const randomTip = tips[Math.floor(Math.random() * tips.length)];
-      const tipLine = theme.fg("muted", `Tip: ${randomTip}`);
-      const clarifyLine = theme.fg("dim", "However, in most cases, it's best to start with /clarify.");
-
-      const hints = [
-        keyHint("app.interrupt", "to interrupt"),
-        keyHint("app.clear", "to clear"),
-        rawKeyHint(`${keyText("app.clear")} twice`, "to exit"),
-        keyHint("app.tools.expand", "to expand tools"),
-        rawKeyHint("/", "for commands"),
-        rawKeyHint("!", "to run bash"),
-      ].join("\n");
-
-      return new Text(`\n${banner}\n${tagline}\n\n${tipLine}\n${clarifyLine}\n\n${hints}`, 1, 0);
-    });
-
+    const uiSettings = resolveAgenticUiSettings({ cwd: ctx.cwd });
     ctx.ui.setFooter((tui, theme, footerData) => {
       return new RoachFooter(theme, footerData, {
         cwd: ctx.cwd,
         getModelName: () => ctx.model?.name,
         getContextUsage: () => ctx.getContextUsage(),
-      }, cacheStats, activeTools, planProgress, tui, milestoneTracker);
+      }, cacheStats, activeTools, planProgress, tui, milestoneTracker, {
+        preset: uiSettings.footerPreset,
+      });
     });
+
+    installEditorComposition(ctx.ui as any);
 
     ctx.ui.notify(
       "Agentic Harness loaded: /clarify, /plan, /ultraplan, /reset-phase",
