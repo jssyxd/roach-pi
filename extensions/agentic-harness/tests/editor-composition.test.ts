@@ -80,6 +80,23 @@ describe("editor composition", () => {
     expect(editor.render(80).join("\n")).toContain("stash empty");
   });
 
+  it("does not stack stash status lines when installed repeatedly on reload", () => {
+    let currentFactory: any;
+    const ui = {
+      ...createUi(),
+      getEditorComponent: vi.fn(() => currentFactory),
+      setEditorComponent: vi.fn((factory: any) => { currentFactory = factory; }),
+    };
+
+    installEditorComposition(ui as any, { stash: new EditorStash() });
+    installEditorComposition(ui as any, { stash: new EditorStash() });
+
+    const editor = currentFactory({} as any, theme, {} as any);
+    const statusLines = editor.render(80).filter((line: string) => line.includes("stash empty"));
+
+    expect(statusLines).toHaveLength(1);
+  });
+
   it("keeps the appended status line width-safe", () => {
     const stash = new EditorStash();
     stash.save("x".repeat(100));

@@ -26,6 +26,8 @@ const SHORTCUT_CLEAR = "\x0b"; // Ctrl+K
 const SHORTCUT_SAVE_KEY = "ctrl+s";
 const SHORTCUT_RESTORE_KEY = "ctrl+r";
 const SHORTCUT_CLEAR_KEY = "ctrl+k";
+const DECORATED_EDITOR_SYMBOL = Symbol.for("roach-pi.editor-composition.decorated-editor");
+const BASE_FACTORY_SYMBOL = Symbol.for("roach-pi.editor-composition.base-factory");
 
 function renderStatusLine(width: number, stash: EditorStash): string {
   const state = stash.hasValue() ? `stash ${stash.getLength()}c` : "stash empty";
@@ -38,6 +40,9 @@ function colorBorder(editor: EditorComponent, theme: EditorTheme): void {
 }
 
 export function decorateEditor(editor: EditorComponent, ui: EditorTextUi, stash: EditorStash = defaultEditorStash): EditorComponent {
+  const decoratedEditor = editor as EditorComponent & Record<symbol, unknown>;
+  if (decoratedEditor[DECORATED_EDITOR_SYMBOL]) return editor;
+
   const originalRender = editor.render.bind(editor);
   editor.render = (width: number) => {
     const lines = originalRender(width);
@@ -67,6 +72,7 @@ export function decorateEditor(editor: EditorComponent, ui: EditorTextUi, stash:
     originalHandleInput(data);
   };
 
+  decoratedEditor[DECORATED_EDITOR_SYMBOL] = true;
   return editor;
 }
 
@@ -76,15 +82,18 @@ export function installEditorComposition(ui: EditorCompositionUi, options: Edito
 
   const editorUi = ui as EditorTextUi;
   const stash = options.stash ?? defaultEditorStash;
-  const previousFactory = ui.getEditorComponent?.();
+  const currentFactory = ui.getEditorComponent?.() as (EditorFactory & Record<symbol, unknown>) | undefined;
+  const previousFactory = (currentFactory?.[BASE_FACTORY_SYMBOL] as EditorFactory | undefined) ?? currentFactory;
 
-  ui.setEditorComponent((tui, theme, keybindings) => {
+  const composedFactory = ((tui, theme, keybindings) => {
     const editor = previousFactory
       ? previousFactory(tui, theme, keybindings)
       : new CustomEditor(tui, theme, keybindings as any);
     colorBorder(editor, theme);
     return decorateEditor(editor, editorUi, stash);
-  });
+  }) as EditorFactory & Record<symbol, unknown>;
+  composedFactory[BASE_FACTORY_SYMBOL] = previousFactory;
+  ui.setEditorComponent(composedFactory);
 }
 
 export const editorCompositionShortcuts = {
