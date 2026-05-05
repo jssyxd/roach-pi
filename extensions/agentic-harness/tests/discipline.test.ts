@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDisciplineAgent, augmentAgentWithKarpathy, KARPATHY_RULES, getSlopCleanerTask } from "../discipline.js";
+import { isDisciplineAgent, augmentAgentWithKarpathy, KARPATHY_RULES } from "../discipline.js";
 import type { AgentConfig } from "../agents.js";
 
 describe("isDisciplineAgent", () => {
@@ -17,10 +17,6 @@ describe("isDisciplineAgent", () => {
 
   it("returns false for plan-validator", () => {
     expect(isDisciplineAgent("plan-validator")).toBe(false);
-  });
-
-  it("returns false for slop-cleaner", () => {
-    expect(isDisciplineAgent("slop-cleaner")).toBe(false);
   });
 });
 
@@ -75,23 +71,5 @@ describe("KARPATHY_RULES", () => {
     expect(KARPATHY_RULES).toContain("No Premature Abstraction");
     expect(KARPATHY_RULES).toContain("No Defensive Paranoia");
     expect(KARPATHY_RULES).toContain("No Future-Proofing");
-  });
-});
-
-describe("getSlopCleanerTask", () => {
-  it("returns a non-empty task string", () => {
-    const task = getSlopCleanerTask();
-    expect(task.length).toBeGreaterThan(0);
-  });
-
-  it("references git commands for file discovery", () => {
-    const task = getSlopCleanerTask();
-    expect(task).toContain("git status");
-    expect(task).toContain("git diff");
-  });
-
-  it("mentions the 6-pass cleanup process", () => {
-    const task = getSlopCleanerTask();
-    expect(task).toContain("6-pass");
   });
 });

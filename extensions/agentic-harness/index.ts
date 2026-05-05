@@ -19,7 +19,7 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { microcompactMessages, getCompactionPrompt, formatCompactSummary } from "./compaction.js";
 import { convertToLlm, serializeConversation } from "@mariozechner/pi-coding-agent";
 import { complete } from "@mariozechner/pi-ai";
-import { isDisciplineAgent, augmentAgentWithKarpathy, getSlopCleanerTask } from "./discipline.js";
+import { isDisciplineAgent, augmentAgentWithKarpathy } from "./discipline.js";
 import { PlanProgressTracker } from "./plan-progress.js";
 import { MilestoneTracker, extractMilestoneId, isCompletionFilePath } from "./milestone-tracker.js";
 import type { MilestoneStatus } from "./milestone-tracker.js";
@@ -927,33 +927,6 @@ export default function (pi: ExtensionAPI) {
             progress,
             contextMode: context,
           });
-
-          if (isDisciplineAgent(agent) && isResultSuccess(result)) {
-            const slopCleaner = findAgent("slop-cleaner");
-            if (slopCleaner) {
-              const cleanResult = await runAgent({
-                agent: slopCleaner,
-                agentName: "slop-cleaner",
-                task: getSlopCleanerTask(),
-                cwd: cwd || defaultCwd,
-                depthConfig,
-                signal,
-                sandbox: sandboxFor(cwd || defaultCwd),
-                onUpdate,
-                makeDetails: makeDetails("single"),
-                maxOutput,
-                contextMode: context,
-              });
-              const mainText = getResultSummaryText(result, maxOutput);
-              const cleanText = isResultSuccess(cleanResult)
-                ? `\n\n[slop-cleaner] completed: ${getResultSummaryText(cleanResult, maxOutput)}`
-                : `\n\n[slop-cleaner] failed: ${getResultSummaryText(cleanResult, maxOutput)}`;
-              return {
-                content: [{ type: "text" as const, text: mainText + cleanText }],
-                details: makeDetails("single")([result, cleanResult]),
-              };
-            }
-          }
 
           if (isResultError(result)) {
             return {

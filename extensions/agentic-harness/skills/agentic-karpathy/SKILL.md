@@ -187,6 +187,5 @@ If any of these are not met, the implementation needs revision.
 
 After implementation is complete:
 
-- If AI-generated code smells remain → use `agentic-clean-ai-slop` to run a corrective pass
 - If a bug is discovered → use `agentic-systematic-debugging` to investigate
 - If performance is a concern → use `agentic-rob-pike` before optimizing

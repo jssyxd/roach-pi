@@ -42,14 +42,3 @@ export function augmentAgentWithKarpathy(agent: AgentConfig | undefined): AgentC
   };
 }
 
-export function getSlopCleanerTask(): string {
-  return `Review the most recently changed files in this project and clean up any AI-generated code smells.
-
-Steps to identify changed files:
-1. Run \`git status\` to see uncommitted changes
-2. Run \`git diff --name-only HEAD~1\` to see the last commit's changes
-3. Focus on the source files identified above (skip test files, config files, lock files)
-
-Follow your 6-pass cleanup process on those files. Run tests after each pass.
-If no AI slop is found, report "No cleanup needed" and exit.`;
-}

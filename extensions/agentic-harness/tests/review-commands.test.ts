@@ -177,7 +177,7 @@ describe("Ultrareview Command (/ultrareview)", () => {
     expect(prompt).not.toContain("The full diff text (inline)");
     expect(prompt).toContain("docs/engineering-discipline/reviews/");
 
-    // ai-slop-cleaner isolation guard
+    // worker isolation guard
     expect(prompt).toContain("worker");
     expect(prompt).toMatch(/NEVER dispatch any agent whose name contains "worker"/);
   });
