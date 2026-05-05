@@ -322,6 +322,7 @@ export function buildTmuxLaunchEnv(env: Record<string, string | undefined>): Rec
     SUBAGENT_PROCESS_LOG_ENV,
     SUBAGENT_FORK_SESSION_ENV,
     SUBAGENT_CONTEXT_MODE_ENV,
+    "PI_AGENTIC_SANDBOX_APPROVAL",
   ]);
   return Object.fromEntries(Object.entries(env).filter(([key]) => allowed.has(key)));
 }
@@ -602,6 +603,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<SingleResult> {
       [SUBAGENT_PARENT_RUN_ID_ENV]: resolvedOwnership.parentRunId,
       [SUBAGENT_ROOT_RUN_ID_ENV]: resolvedOwnership.rootRunId,
       [SUBAGENT_OWNER_ENV]: resolvedOwnership.owner,
+      PI_AGENTIC_SANDBOX_APPROVAL: "always",
     };
     const resolvedSandbox = await resolveSandboxLaunch({
       command: invocation.command,

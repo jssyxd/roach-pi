@@ -640,7 +640,7 @@ export default function (pi: ExtensionAPI) {
           approvalMode: parsedApprovalMode.mode,
           approvalResolver,
           approvalStore,
-          requireApprovalForAllCommands: true,
+          requireApprovalForAllCommands: false,
         });
 
         if (params.action) {
