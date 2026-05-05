@@ -25,10 +25,7 @@ const AGENT_END_GRACE_MS = 1000;
 const ENV_COMMAND = "/usr/bin/env";
 
 function shouldDetachChildProcess(): boolean {
-  // macOS can surface EBADF when detached children are spawned from the
-  // interactive TUI process. Keep native subagents foregrounded there and only
-  // use process-group signalling when a detached process group was created.
-  return process.platform !== "win32" && process.platform !== "darwin";
+  return process.platform !== "win32";
 }
 
 const SUBAGENT_DEPTH_ENV = "PI_SUBAGENT_DEPTH";

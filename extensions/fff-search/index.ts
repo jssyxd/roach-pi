@@ -36,6 +36,7 @@ const DEFAULT_GREP_LIMIT = 100;
 const DEFAULT_FIND_LIMIT = 200;
 const GREP_MAX_LINE_LENGTH = 500;
 const MENTION_MAX_RESULTS = 20;
+const DEFAULT_SCAN_TIMEOUT_MS = 5000;
 
 type FffMode = "both" | "tools-only";
 
@@ -240,6 +241,18 @@ export default function fffExtension(pi: ExtensionAPI) {
 		return readConfigMode();
 	}
 
+	function getScanTimeoutMs(): number {
+		const raw = process.env.PI_FFF_SCAN_TIMEOUT_MS;
+		if (!raw) return DEFAULT_SCAN_TIMEOUT_MS;
+		const parsed = Number.parseInt(raw, 10);
+		return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SCAN_TIMEOUT_MS;
+	}
+
+	function shouldEnableNativeWatch(): boolean {
+		const raw = process.env.PI_FFF_ENABLE_WATCH;
+		return raw === "1" || raw?.toLowerCase() === "true" || raw?.toLowerCase() === "yes";
+	}
+
 	function resolveRuntimeCwd(ctx?: ExtensionContext): string {
 		if (ctx?.cwd && ctx.cwd.length > 0) {
 			activeCwd = ctx.cwd;
@@ -303,19 +316,24 @@ export default function fffExtension(pi: ExtensionAPI) {
 			frecencyDbPath: FRECENCY_DB_PATH,
 			historyDbPath: HISTORY_DB_PATH,
 			aiMode: true,
+			disableWatch: !shouldEnableNativeWatch(),
 		});
 
 		if (!result.ok) {
 			throw new Error(`Failed to create FFF file finder: ${result.error}`);
 		}
 
-		finder = result.value;
-		finderCwd = cwd;
-		const scanResult = await finder.waitForScan(15000);
-		if (scanResult.ok && !scanResult.value) {
-			// timed out but finder is still usable with partial index
+		const nextFinder = result.value;
+		const scanTimeoutMs = getScanTimeoutMs();
+		const scanResult = await nextFinder.waitForScan(scanTimeoutMs);
+		if (!scanResult.ok || !scanResult.value) {
+			nextFinder.destroy();
+			const reason = scanResult.ok ? `timed out after ${scanTimeoutMs}ms` : scanResult.error;
+			throw new Error(`FFF initial scan ${reason}; using built-in search fallback`);
 		}
 
+		finder = nextFinder;
+		finderCwd = cwd;
 		return finder;
 	}
 
@@ -394,14 +412,7 @@ export default function fffExtension(pi: ExtensionAPI) {
 			ctx.ui.notify("FFF is disabled at top-level directories (/ or $HOME); built-in find/grep fallback is active.", "info");
 			return;
 		}
-		try {
-			await ensureFinder(activeCwd);
-			applyEditorMode(ctx);
-		} catch (e: unknown) {
-			const msg = e instanceof Error ? e.message : String(e);
-			restoreEditorMode(ctx);
-			ctx.ui.notify(`FFF init failed: ${msg}. Built-in search fallback remains available for find/grep.`, "warning");
-		}
+		applyEditorMode(ctx);
 	});
 
 	pi.on("context", async (_event, ctx) => {
