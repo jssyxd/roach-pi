@@ -90,9 +90,9 @@ function getIcons() { return useNerdIcons ? ICONS : ICONS_PLAIN; }
 // Presets
 
 const FOOTER_PRESET_DEFINITIONS: Record<FooterPresetName, FooterPresetDefinition> = {
-  default:  { lines: [["logo", "model", "thinking", "path", "git"], ["context", "statuses", "tools", "cache"]] },
-  compact:  { lines: [["logo", "model", "thinking", "path", "git", "context", "statuses"]] },
-  minimal:  { lines: [["logo", "path", "git", "statuses"]] },
+  default:  { lines: [["logo", "model", "thinking", "path", "git", "context", "cache", "tools", "statuses"]] },
+  compact:  { lines: [["logo", "model", "path", "git", "context", "cache", "statuses"]] },
+  minimal:  { lines: [["logo", "path", "git", "context", "statuses"]] },
 };
 
 // Helpers
@@ -124,6 +124,10 @@ const POWERLINE_COLORS: Record<string, { fg: string; bg: string }> = {
   thinking: { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;150;200;100m" },
   git:      { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;200;150;50m" },
   context:  { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;80;80;80m" },
+  dim:      { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;70;70;70m" },
+  success:  { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;60;130;90m" },
+  warning:  { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;160;110;30m" },
+  accent:   { fg: "\x1b[38;2;255;255;255m", bg: "\x1b[48;2;90;90;140m" },
   default:  { fg: "\x1b[39m", bg: "\x1b[49m" },
 };
 
@@ -291,8 +295,7 @@ export class RoachFooter implements Component {
     const tokens = usage?.tokens ?? 0;
     const ctxK = usage ? Math.round(usage.contextWindow / 1000) : 0;
     const tokK = Math.round(tokens / 1000);
-    const bar = progressBar(pct, 15, t);
-    const ctxPart = `${t.fg("dim", "ctx")} ${bar} ${t.fg("dim", `${tokK}k/${ctxK}k`)}`;
+    const ctxPart = `${tokK}k/${ctxK}k`;
 
     const totalTokens = this.cacheStats.totalInput + this.cacheStats.totalCacheRead;
     const cacheRate = totalTokens > 0 ? Math.round((this.cacheStats.totalCacheRead / totalTokens) * 100) : 0;
@@ -326,7 +329,7 @@ export class RoachFooter implements Component {
       segs.set("thinking", { id: "thinking", text: `thinking:${thinkingLevel}`, icon: icons.thinking, color: "thinking", priority: 3 });
     }
 
-    segs.set("context", { id: "context", text: ctxPart, icon: icons.context, color: "dim", priority: 0 });
+    segs.set("context", { id: "context", text: ctxPart, icon: icons.context, color: "context", priority: 0 });
     segs.set("cache", { id: "cache", text: `cache ${cacheRate}%`, icon: icons.cache, color: cacheColor, priority: 5 });
 
     const statuses = this.footerData.getExtensionStatuses?.() ?? new Map<string, string>();
