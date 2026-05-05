@@ -41,4 +41,3 @@ export function augmentAgentWithKarpathy(agent: AgentConfig | undefined): AgentC
     systemPrompt: agent.systemPrompt + KARPATHY_RULES,
   };
 }
-
