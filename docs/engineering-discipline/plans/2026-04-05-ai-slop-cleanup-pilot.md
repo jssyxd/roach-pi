@@ -1,5 +1,7 @@
 # AI Slop Cleanup Pilot Implementation Plan
 
+> **Superseded — 2026-05-06.** The slop-cleaner subsystem was removed; see `CHANGELOG.md` and `docs/superpowers/specs/2026-05-06-remove-slop-cleaner-design.md`. The body below is preserved as project history and reflects an earlier model-quality assumption.
+
 > **Worker note:** Execute this plan task-by-task using the run-plan skill or subagents. Each step uses checkbox (`- [ ]`) syntax for progress tracking.
 
 **Goal:** Stabilize the current `extensions/agentic-harness` baseline, then remove a narrow first batch of high-confidence AI slop from low-risk files without changing observable behavior.
