@@ -827,6 +827,10 @@ describe("Validator Information Barrier", () => {
     // Verify schema has planFile and planTaskId properties
     expect(schema.properties.planFile).toBeDefined();
     expect(schema.properties.planTaskId).toBeDefined();
+    expect(schema.properties.tasks.items.properties.planFile).toBeDefined();
+    expect(schema.properties.tasks.items.properties.planTaskId).toBeDefined();
+    expect(schema.properties.chain.items.properties.planFile).toBeDefined();
+    expect(schema.properties.chain.items.properties.planTaskId).toBeDefined();
   });
 
   it("should include plan-validator guideline in promptGuidelines", () => {

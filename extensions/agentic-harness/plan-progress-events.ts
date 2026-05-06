@@ -34,6 +34,7 @@ export type PlanLoadOptions = {
   text?: string;
   path?: string;
   cwd?: string;
+  allowAnyPath?: boolean;
 };
 
 export type PlanToolResultEvent = {
@@ -280,7 +281,7 @@ export async function loadPlanFromTextOrFile(
     return true;
   }
 
-  if (!options.path || !isPlanMarkdownPath(options.path)) return false;
+  if (!options.path || (!options.allowAnyPath && !isPlanMarkdownPath(options.path))) return false;
 
   try {
     const fileText = await readFile(resolvePlanPath(options.path, options.cwd), "utf-8");
@@ -309,7 +310,9 @@ export async function loadPlanFromToolResultEvent(
     const text = event.toolName === "write"
       ? (typeof event.input?.content === "string" ? event.input.content : undefined)
       : extractToolResultText(event.content);
-    return loadPlanFromTextOrFile(tracker, { text, path: filePath, cwd });
+    const loaded = await loadPlanFromTextOrFile(tracker, { text, path: filePath, cwd });
+    if (loaded) sessionPlanPaths?.add(filePath);
+    return loaded;
   }
 
   if (event.toolName === "write") {
@@ -324,7 +327,7 @@ export async function loadPlanFromToolResultEvent(
 
   if (sessionPlanPaths?.has(filePath)) {
     const text = extractToolResultText(event.content);
-    return loadPlanFromTextOrFile(tracker, { text, path: filePath, cwd });
+    return loadPlanFromTextOrFile(tracker, { text, path: filePath, cwd, allowAnyPath: true });
   }
 
   return false;
@@ -500,7 +503,7 @@ export async function reconstructPlanProgressFromSessionEntries(
     }
 
     if (toolName === "subagent" && args) {
-      await reloadPlanFromSubagentArgs(tracker, args, cwd);
+      await reloadPlanFromSubagentArgs(tracker, args, cwd, sessionPlanPaths);
       const matchedTaskIds = startPlanSubagentTasks(tracker, args);
       completePlanSubagentTasks(
         tracker,
@@ -513,6 +516,10 @@ export async function reconstructPlanProgressFromSessionEntries(
     toolCallArgsById.delete(toolCallId);
   }
 
+  if (lastSnapshot) {
+    tracker.restoreTaskStatuses(lastSnapshot as Array<{ id: number; status: TaskStatus }>);
+  }
+
   tracker.demoteRunningToPending();
 }
 
@@ -520,10 +527,20 @@ export async function reloadPlanFromSubagentArgs(
   tracker: PlanProgressTracker,
   args: unknown,
   cwd?: string,
+  sessionPlanPaths?: Set<string>,
 ): Promise<boolean> {
   for (const planPath of extractPlanPathsFromArgs(args)) {
     if (await loadPlanFromTextOrFile(tracker, { path: planPath, cwd })) {
       return true;
+    }
+  }
+  if (tracker.hasPlan()) return false;
+
+  if (sessionPlanPaths) {
+    for (const planPath of [...sessionPlanPaths].reverse()) {
+      if (await loadPlanFromTextOrFile(tracker, { path: planPath, cwd, allowAnyPath: true })) {
+        return true;
+      }
     }
   }
   return false;

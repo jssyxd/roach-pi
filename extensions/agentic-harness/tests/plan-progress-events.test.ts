@@ -218,6 +218,49 @@ describe("plan progress event loading", () => {
     expect(tracker.getGoal()).toBe("Loaded from reads");
   });
 
+  it("falls back to sessionPlanPaths when subagent args lack plan references", async () => {
+    const { cwd, path } = await createTempPlan(samplePlan("Loaded from session fallback"));
+    const tracker = new PlanProgressTracker();
+
+    const loaded = await reloadPlanFromSubagentArgs(tracker, {
+      agent: "plan-worker",
+      task: "Task 1",
+    }, cwd, new Set([path]));
+
+    expect(loaded).toBe(true);
+    expect(tracker.hasPlan()).toBe(true);
+    expect(tracker.getGoal()).toBe("Loaded from session fallback");
+  });
+
+  it("falls back to the most recently discovered session plan path", async () => {
+    const { cwd, path: oldPath } = await createTempPlan(samplePlan("Old session plan"));
+    const newPath = "docs/engineering-discipline/plans/new-session-plan.md";
+    await writeFile(join(cwd, newPath), samplePlan("New session plan"), "utf-8");
+    const tracker = new PlanProgressTracker();
+
+    const loaded = await reloadPlanFromSubagentArgs(tracker, {
+      agent: "plan-worker",
+      task: "Task 1",
+    }, cwd, new Set([oldPath, newPath]));
+
+    expect(loaded).toBe(true);
+    expect(tracker.getGoal()).toBe("New session plan");
+  });
+
+  it("does not overwrite an already loaded plan with session fallback", async () => {
+    const { cwd, path } = await createTempPlan(samplePlan("Fallback should not replace active plan"));
+    const tracker = new PlanProgressTracker();
+    tracker.loadPlan(samplePlan("Active plan"));
+
+    const loaded = await reloadPlanFromSubagentArgs(tracker, {
+      agent: "plan-worker",
+      task: "Task 1",
+    }, cwd, new Set([path]));
+
+    expect(loaded).toBe(false);
+    expect(tracker.getGoal()).toBe("Active plan");
+  });
+
   it("reloads subagent args from a task text plan path", async () => {
     const { cwd, path } = await createTempPlan(samplePlan("Loaded from task text"));
     const tracker = new PlanProgressTracker();
@@ -737,6 +780,17 @@ describe("plan progress CustomEntry snapshot replay", () => {
     expect(tracker.getProgress()).toMatchObject({ completed: 2, running: 0, pending: 1 });
   });
 
+  it("restores the latest CustomEntry when it is the last branch entry", async () => {
+    const tracker = new PlanProgressTracker();
+
+    await reconstructPlanProgressFromSessionEntries(tracker, [
+      messageEntry({ role: "assistant", content: [{ type: "text", text: trackingPlan() }] }),
+      snapshotEntry([{ id: 1, status: "completed" }]),
+    ], ".");
+
+    expect(tracker.getProgress()).toMatchObject({ completed: 1, running: 0, pending: 2 });
+  });
+
   it("demotes stuck-running tasks to pending after replay", async () => {
     const tracker = new PlanProgressTracker();
 
@@ -813,6 +867,23 @@ describe("content-based fallback for non-standard paths", () => {
     expect(readAfterWrite).toBe(true);
     expect(tracker.hasPlan()).toBe(true);
     expect(tracker.getGoal()).toBe("Loaded after session write");
+  });
+
+  it("reloads a trusted non-standard session plan path from disk", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "plan-progress-events-nonstandard-"));
+    tempRoots.push(cwd);
+    const nonStandardPath = "specs/implementation.md";
+    await mkdir(join(cwd, "specs"), { recursive: true });
+    await writeFile(join(cwd, nonStandardPath), samplePlan("Loaded non-standard fallback from disk"), "utf-8");
+    const tracker = new PlanProgressTracker();
+
+    const loaded = await reloadPlanFromSubagentArgs(tracker, {
+      agent: "plan-worker",
+      task: "Task 1",
+    }, cwd, new Set([nonStandardPath]));
+
+    expect(loaded).toBe(true);
+    expect(tracker.getGoal()).toBe("Loaded non-standard fallback from disk");
   });
 
   it("does not load random markdown files with task-like headers", async () => {

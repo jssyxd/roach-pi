@@ -83,7 +83,12 @@ For each task, perform the following cycle:
 
 **2-1. Compliance Check (subagent)**
 
-Before starting a task, verify that the current task aligns with the plan:
+Before starting a task, verify that the current task aligns with the plan. If dispatched via `subagent` with `agent: "plan-compliance"`, the `subagent` args **must** include:
+
+- `planFile`: the path to the plan markdown file
+- `planTaskId`: the task number being checked
+
+Compliance checks must:
 
 - Compare the plan's defined steps against current file state
 - Confirm that predecessor tasks' outputs exist as expected
@@ -94,7 +99,12 @@ If issues found: notify the user and resolve before proceeding.
 
 **2-2. Worker Implementation (subagent, via `subagent` tool)**
 
-Dispatch a subagent (worker) via the `subagent` tool with `agent: "plan-worker"` to execute the task's steps:
+Dispatch a subagent (worker) via the `subagent` tool with `agent: "plan-worker"` to execute the task's steps. The `subagent` args **must** include:
+
+- `planFile`: the path to the plan markdown file (e.g. `docs/engineering-discipline/plans/YYYY-MM-DD-feature.md`)
+- `planTaskId`: the task number being executed (e.g. `1` for Task 1)
+
+Additional requirements:
 
 - The worker follows the steps exactly as written in the plan
 - The worker makes no arbitrary judgments beyond what the plan specifies
@@ -105,7 +115,12 @@ Dispatch a subagent (worker) via the `subagent` tool with `agent: "plan-worker"`
 
 **2-3. Validator Review (subagent, via `subagent` tool — information-isolated)**
 
-Dispatch a separate subagent (validator) via the `subagent` tool with `agent: "plan-validator"`. The validator operates under an **information barrier** — it knows only what the task was supposed to accomplish, not what the worker did or how.
+Dispatch a separate subagent (validator) via the `subagent` tool with `agent: "plan-validator"`. The `subagent` args **must** include:
+
+- `planFile`: the same plan path used for the worker
+- `planTaskId`: the same task number being validated
+
+The validator operates under an **information barrier** — it knows only what the task was supposed to accomplish, not what the worker did or how.
 
 **Constructing the validator prompt:**
 

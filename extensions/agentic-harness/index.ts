@@ -328,6 +328,8 @@ export default function (pi: ExtensionAPI) {
     output: Type.Optional(Type.String({ description: "Artifact-relative file path where the subagent should write its final output" })),
     reads: Type.Optional(Type.Array(Type.String(), { description: "Files to include as declared read context for the subagent" })),
     progress: Type.Optional(Type.String({ description: "Artifact-relative file path for progress notes" })),
+    planFile: Type.Optional(Type.String({ description: "Path to plan file. Required when agent is plan-validator — the validator prompt is built from this file, not from the task field." })),
+    planTaskId: Type.Optional(Type.Number({ description: "Task number in the plan file to validate (e.g. 1 for Task 1). Required when agent is plan-validator." })),
   });
 
   const ChainItem = Type.Object({
@@ -337,6 +339,8 @@ export default function (pi: ExtensionAPI) {
     output: Type.Optional(Type.String({ description: "Artifact-relative file path where the subagent should write its final output" })),
     reads: Type.Optional(Type.Array(Type.String(), { description: "Files to include as declared read context for the subagent" })),
     progress: Type.Optional(Type.String({ description: "Artifact-relative file path for progress notes" })),
+    planFile: Type.Optional(Type.String({ description: "Path to plan file. Required when agent is plan-validator — the validator prompt is built from this file, not from the task field." })),
+    planTaskId: Type.Optional(Type.Number({ description: "Task number in the plan file to validate (e.g. 1 for Task 1). Required when agent is plan-validator." })),
   });
 
   const SubagentParams = Type.Object({
@@ -390,6 +394,8 @@ export default function (pi: ExtensionAPI) {
     output?: string;
     reads?: string[];
     progress?: string;
+    planFile?: string;
+    planTaskId?: number;
   };
   type SubagentToolParams = {
     agent?: string;
@@ -404,6 +410,8 @@ export default function (pi: ExtensionAPI) {
     progress?: string;
     context?: SubagentContextMode;
     worktree?: boolean;
+    planFile?: string;
+    planTaskId?: number;
   };
 
   const makeDetails = (mode: "single" | "parallel") => (results: SingleResult[]): SubagentDetails => ({ mode, results });
@@ -630,11 +638,12 @@ export default function (pi: ExtensionAPI) {
           return { approved: false };
         };
         const sandboxFor = (runCwd: string) => ({
-          enabled: true,
+          // Subagents launch their own pi process and must be able to manage
+          // child processes/signals for their own test suites. Do not sandbox
+          // the subagent process itself; sandboxing for tools inside that
+          // process is handled by that child pi session.
+          enabled: false,
           workspaceRoot: defaultCwd,
-          // Subagents must reach model/provider endpoints and update local
-          // session lock/state files under PI_CODING_AGENT_DIR (default: ~/.pi/agent)
-          // or PI_CODING_AGENT_SESSION_DIR when session storage is customized.
           networkMode: "on" as const,
           additionalWritableRoots: Array.from(new Set([...piWritableRoots, runCwd])),
           approvalMode: parsedApprovalMode.mode,
@@ -642,6 +651,23 @@ export default function (pi: ExtensionAPI) {
           approvalStore,
           requireApprovalForAllCommands: false,
         });
+
+        const effectiveTaskFor = async (
+          agentName: string,
+          taskText: string,
+          planFile?: string,
+          planTaskId?: number,
+        ) => {
+          if (agentName !== "plan-validator" || !planFile || planTaskId == null) return taskText;
+          try {
+            const planContent = await readFile(planFile, "utf-8");
+            const parsed = parsePlan(planContent);
+            const planTask = parsed.tasks.find((t) => t.id === planTaskId);
+            return planTask ? buildValidatorPrompt(planTask, parsed.verificationCommand) : taskText;
+          } catch {
+            return taskText;
+          }
+        };
 
         if (params.action) {
           const registry = getDefaultRegistry();
@@ -731,13 +757,14 @@ export default function (pi: ExtensionAPI) {
           for (let i = 0; i < chain.length; i++) {
             const step = chain[i];
             const taskWithContext = step.task.replace(/\{previous\}/g, previousOutput);
+            const effectiveTask = await effectiveTaskFor(step.agent, taskWithContext, step.planFile, step.planTaskId);
             const chainAgent = isDisciplineAgent(step.agent)
               ? augmentAgentWithKarpathy(findAgent(step.agent))
               : findAgent(step.agent);
             const result = await runAgent({
               agent: chainAgent,
               agentName: step.agent,
-              task: taskWithContext,
+              task: effectiveTask,
               cwd: step.cwd || defaultCwd,
               depthConfig,
               signal,
@@ -803,13 +830,14 @@ export default function (pi: ExtensionAPI) {
           let results: SingleResult[];
           try {
             results = await mapWithConcurrencyLimit(tasks, MAX_CONCURRENCY, async (t, index) => {
+              const effectiveTask = await effectiveTaskFor(t.agent, t.task, t.planFile, t.planTaskId);
               const parallelAgent = isDisciplineAgent(t.agent)
                 ? augmentAgentWithKarpathy(findAgent(t.agent))
                 : findAgent(t.agent);
               const result = await runAgent({
                 agent: parallelAgent,
                 agentName: t.agent,
-                task: t.task,
+                task: effectiveTask,
                 cwd: t.cwd || defaultCwd,
                 depthConfig,
                 signal,
@@ -855,21 +883,7 @@ export default function (pi: ExtensionAPI) {
             };
           }
 
-          let effectiveTask = task;
-
-          // Validator information barrier: replace LLM-composed task with
-          // code-generated prompt built directly from the plan file.
-          if (agent === "plan-validator" && params.planFile && params.planTaskId != null) {
-            try {
-              const planContent = await readFile(params.planFile, "utf-8");
-              const parsed = parsePlan(planContent);
-              const planTask = parsed.tasks.find((t) => t.id === params.planTaskId);
-              if (planTask) {
-                effectiveTask = buildValidatorPrompt(planTask, parsed.verificationCommand);
-              }
-            } catch {
-            }
-          }
+          const effectiveTask = await effectiveTaskFor(agent, task, params.planFile, params.planTaskId);
 
           if (params.async) {
             const asyncAgent = isDisciplineAgent(agent)
@@ -1832,7 +1846,7 @@ Do not start multi-step implementation without a clear understanding of what the
       const args = getToolExecutionArgs(event, toolCallArgsById.get(event.toolCallId));
       if (args) {
         toolCallArgsById.set(event.toolCallId, args);
-        await reloadPlanFromSubagentArgs(planProgress, args, ctx.cwd);
+        await reloadPlanFromSubagentArgs(planProgress, args, ctx.cwd, sessionPlanPaths);
         const matchedTaskIds = startPlanSubagentTasks(planProgress, args);
         if (matchedTaskIds.length > 0) {
           planTaskIdsByToolCallId.set(event.toolCallId, matchedTaskIds);
