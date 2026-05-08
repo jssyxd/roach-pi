@@ -2143,7 +2143,7 @@ Do not start multi-step implementation without a clear understanding of what the
     sessionPlanPaths.clear();
     planProgress.clear();
     milestoneTracker.clear();
-    await getDefaultRegistry().restorePersisted(join(ctx.cwd, ".pi", "agent", "runs"));
+    await getDefaultRegistry().sweepStalePersisted(join(ctx.cwd, ".pi", "agent", "runs"));
     const branchEntries = ctx.sessionManager?.getBranch?.() ?? [];
 
     // --- Structured-first session restore (M6) ---

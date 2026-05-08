@@ -1,3 +1,79 @@
+# Current: Fix zombie async-run inheritance across pi sessions
+
+Root cause: `restorePersisted` (async-registry.ts:289) blindly loads every
+persisted async-run.json under `<cwd>/.pi/agent/runs/` into the in-memory
+registry on `session_start`. Records left in non-terminal status (`running` /
+`spawning`) by a prior pi process — typical when the parent died before flush —
+are restored as if they were live. The final-response guard (index.ts:442)
+then blocks the new session until the model takes a wait/interrupt/background
+action on a process that no longer exists.
+
+Native subagents are children of pi: parent dies → child dies. They are never
+resumable. So the rescue path is dead weight that just creates zombies.
+
+Done when:
+- [ ] No async-run record from a prior pi process is loaded into the in-memory
+      registry on session start.
+- [ ] Disk records left in non-terminal status are normalized to `interrupted`
+      (with `completedAt` and `notified=true`) so they don't replay on later
+      sessions.
+- [ ] Already-terminal records on disk are not rewritten.
+- [ ] `cd extensions/agentic-harness && npm run build && npm test` passes.
+
+Plan:
+- [x] Add failing tests in `tests/async-registry.test.ts` that exercise the new
+      `sweepStalePersisted` behavior (normalize stale, leave terminal alone, no
+      in-memory load).
+- [x] Add `sweepStalePersisted` to `RunRegistry` and remove `restorePersisted`.
+- [x] Replace the call site at `index.ts:2146`.
+- [x] Run `npm run build && npm test` and document review.
+
+## Review
+
+Completed.
+- `async-registry.ts`: removed `restorePersisted`; added `sweepStalePersisted`
+  which only normalizes non-terminal disk records to `interrupted` and never
+  loads them into the in-memory map. Extracted shared `writeRecord` helper so
+  the sweep path can persist a record without first registering it in memory.
+- `index.ts:2146`: `restorePersisted` call replaced with `sweepStalePersisted`.
+  `restore()` and `load()` remain for the on-demand path used by
+  `waitForCompletion` when the lead model explicitly waits on a known runId.
+- TDD: two failing tests added first
+  (`sweepStalePersisted normalizes non-terminal disk records and does NOT load
+  them in-memory`, `sweepStalePersisted leaves already-terminal records
+  untouched`); both pass after implementation.
+- Verification: `npm run build` — PASS. `npm test` — PASS, 59 files / 701 tests.
+- Existing zombie records under `~/.hermes/.pi/agent/runs/` are already in
+  terminal status (`interrupted` / `failed`) so the new sweep path is a no-op
+  on them; no manual cleanup needed.
+
+---
+
+# Current: Translate agentic skill docs to English
+
+Done when:
+- [x] All Korean-language text under `extensions/agentic-harness/skills` is translated to English.
+- [x] Skill names, tool names, paths, Markdown formatting, and YAML frontmatter remain intact.
+- [x] A search confirms no Korean characters remain under the skills directory.
+- [x] Relevant docs/tests are checked for regressions.
+
+Plan:
+- [x] Read the affected skill docs and identify exact Korean text.
+- [x] Make minimal translation-only edits in the affected files.
+- [x] Verify with Korean-character search and relevant test/build checks.
+- [x] Review the diff and document results.
+
+## Review
+
+Completed.
+- Updated `extensions/agentic-harness/skills/agentic-brainstorming/SKILL.md` trigger examples from Korean to English.
+- Translated the remaining Korean prose/table text in `extensions/agentic-harness/skills/agentic-clarification/SKILL.md`.
+- Verification: Python Hangul scan under `extensions/agentic-harness/skills` — PASS, no Korean Hangul characters found.
+- Verification: `cd extensions/agentic-harness && npm test -- skill-docs` — PASS, 6 tests.
+- Verification: `cd extensions/agentic-harness && npm run build` — PASS.
+
+---
+
 # Docs: progress tracker improvement note
 
 - [x] Locate README / changelog docs for agentic-harness

@@ -265,10 +265,14 @@ export class RunRegistry {
   async persist(runId: string, rootDir = defaultRunStateRoot()): Promise<void> {
     const entry = this.runs.get(runId);
     if (!entry) return;
-    const file = asyncRunRecordPath(rootDir, runId);
+    await this.writeRecord(entry.record, rootDir);
+  }
+
+  private async writeRecord(record: AsyncRunRecord, rootDir: string): Promise<void> {
+    const file = asyncRunRecordPath(rootDir, record.runId);
     await mkdir(dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.${Date.now()}.${randomBytes(4).toString("hex")}.tmp`;
-    await writeFile(tmp, `${JSON.stringify(entry.record, null, 2)}\n`, "utf-8");
+    await writeFile(tmp, `${JSON.stringify(record, null, 2)}\n`, "utf-8");
     await rename(tmp, file);
   }
 
@@ -286,10 +290,30 @@ export class RunRegistry {
     this.notify(record.runId, record);
   }
 
-  async restorePersisted(rootDir = this.rootDir ?? defaultRunStateRoot()): Promise<AsyncRunRecord[]> {
+  /**
+   * Disk-only cleanup of orphaned async-run records left by prior pi processes.
+   *
+   * Native subagents are children of the pi process; when the parent dies, the
+   * child dies with it. There is nothing to resume, so we do not load these
+   * records into the in-memory registry. We only normalize their on-disk
+   * status from "running"/"spawning" to "interrupted" so the file does not
+   * resurface on later sessions.
+   */
+  async sweepStalePersisted(rootDir = this.rootDir ?? defaultRunStateRoot()): Promise<AsyncRunRecord[]> {
     const records = await this.listPersisted(rootDir);
-    for (const record of records) this.restore(record);
-    return records;
+    const normalized: AsyncRunRecord[] = [];
+    for (const record of records) {
+      if (isTerminalStatus(record.status)) continue;
+      const now = new Date().toISOString();
+      record.status = "interrupted";
+      record.completedAt = record.completedAt ?? now;
+      record.notified = true;
+      record.notificationSentAt = record.notificationSentAt ?? now;
+      record.updatedAt = now;
+      await this.writeRecord(record, rootDir);
+      normalized.push(record);
+    }
+    return normalized;
   }
 
   markNotified(runId: string): boolean {

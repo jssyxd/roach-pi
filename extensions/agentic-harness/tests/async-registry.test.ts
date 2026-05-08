@@ -385,6 +385,50 @@ describe("RunRegistry durability", () => {
     }
   });
 
+  it("sweepStalePersisted normalizes non-terminal disk records and does NOT load them in-memory", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "pi-runs-"));
+    try {
+      const prior = new RunRegistry({ rootDir });
+      const runId = prior.register("explorer", "old task", "native", undefined, "needed-before-final");
+      prior.update(runId, { status: "running", pid: 99999 });
+      await prior.flushPersistence();
+
+      const fresh = new RunRegistry({ rootDir });
+      await fresh.sweepStalePersisted(rootDir);
+
+      expect(fresh.getStatus(runId)).toBeUndefined();
+      expect(fresh.listActive()).toHaveLength(0);
+
+      const onDisk = await fresh.load(runId, rootDir);
+      expect(onDisk?.status).toBe("interrupted");
+      expect(onDisk?.completedAt).toBeTruthy();
+      expect(onDisk?.notified).toBe(true);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sweepStalePersisted leaves already-terminal records untouched", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "pi-runs-"));
+    try {
+      const reg = new RunRegistry({ rootDir });
+      const runId = reg.register("agent", "task", "native");
+      reg.complete(runId, "completed");
+      await reg.flushPersistence();
+      const before = await reg.load(runId, rootDir);
+
+      const fresh = new RunRegistry({ rootDir });
+      await fresh.sweepStalePersisted(rootDir);
+
+      const after = await fresh.load(runId, rootDir);
+      expect(after?.status).toBe("completed");
+      expect(after?.completedAt).toBe(before?.completedAt);
+      expect(fresh.getStatus(runId)).toBeUndefined();
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it("markNotified and markConsumed persist lifecycle flags", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "pi-runs-"));
     try {
