@@ -687,7 +687,7 @@ export default function (pi: ExtensionAPI) {
       ],
       parameters: SubagentParams,
 
-      renderCall: (args, theme) => renderCall(args, theme),
+      renderCall: (args, theme, context) => renderCall(args, theme, context),
       renderResult: (result, { expanded }, theme) => renderResult(result, expanded, theme),
 
       execute: async (toolCallId, params, signal, onUpdate, ctx) => {

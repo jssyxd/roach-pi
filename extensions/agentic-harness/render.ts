@@ -40,8 +40,19 @@ export function formatUsage(usage: Partial<UsageStats>, model?: string): string 
 
 type ThemeFg = (color: any, text: string) => string;
 
+interface RenderCallContext {
+  argsComplete?: boolean;
+}
+
 function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+}
+
+function previewText(value: unknown, maxLen: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const oneLine = value.replace(/\s+/g, " ").trim();
+  if (oneLine.length === 0) return undefined;
+  return truncate(oneLine, maxLen);
 }
 
 function shortenPath(p: string): string {
@@ -126,6 +137,7 @@ function renderDisplayItems(items: DisplayItem[], expanded: boolean, fg: ThemeFg
 export function renderCall(
   args: Record<string, any>,
   theme: Theme,
+  context: RenderCallContext = {},
 ): Component {
   if (args.tasks && args.tasks.length > 0) {
     let text = theme.fg("toolTitle", theme.bold("subagent ")) + theme.fg("accent", `parallel (${args.tasks.length} tasks)`);
@@ -146,8 +158,9 @@ export function renderCall(
   }
 
   // Single mode
-  const agentName = args.agent || "...";
-  const preview = args.task ? truncate(args.task, 60) : "...";
+  const isReceivingArgs = context.argsComplete === false;
+  const agentName = previewText(args.agent, 40) ?? (isReceivingArgs ? "starting..." : "missing agent");
+  const preview = previewText(args.task, 60) ?? (isReceivingArgs ? "receiving task..." : "missing task");
   let text = theme.fg("toolTitle", theme.bold("subagent ")) + theme.fg("accent", agentName);
   text += `\n  ${theme.fg("dim", preview)}`;
   return new Text(text, 0, 0);
@@ -184,6 +197,12 @@ function renderMetadata(r: SingleResult, fg: ThemeFg): string {
   if (r.artifacts?.artifactError) lines.push(`artifact warning ${r.artifacts.artifactError}`);
   if (r.worktree?.worktreeError) lines.push(`worktree warning ${r.worktree.worktreeError}`);
   return lines.length > 0 ? fg("dim", lines.join(" • ")) : "";
+}
+
+function renderSingleResultPreview(r: SingleResult, fg: ThemeFg): string {
+  if (r.lastActivity) return formatToolCall(r.lastActivity.name, r.lastActivity.args, fg);
+  const taskPreview = previewText(r.task, 90);
+  return taskPreview ? fg("dim", taskPreview) : "";
 }
 
 function renderNestedCalls(r: SingleResult, fg: ThemeFg): string {
@@ -262,6 +281,8 @@ function renderSingleResult(
 
   // Collapsed
   let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
+  const resultPreview = renderSingleResultPreview(r, theme.fg.bind(theme));
+  if (resultPreview) text += ` ${theme.fg("muted", "—")} ${resultPreview}`;
   if (error && r.stopReason) text += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
   const metadataText = renderMetadata(r, theme.fg.bind(theme));
   if (metadataText) text += `\n${metadataText}`;

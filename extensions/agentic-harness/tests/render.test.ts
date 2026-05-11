@@ -1,7 +1,7 @@
 // tests/render.test.ts
 import { describe, it, expect } from "vitest";
 import assert from "node:assert";
-import { formatTokens, formatUsage, statusIcon, formatToolCall, renderResult } from "../render.js";
+import { formatTokens, formatUsage, statusIcon, formatToolCall, renderCall, renderResult } from "../render.js";
 import { emptyUsage, type SingleResult, type SubagentDetails } from "../types.js";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 
@@ -9,6 +9,38 @@ const theme: Theme = {
   fg: (_color: string, text: string) => text,
   bold: (text: string) => text,
 } as unknown as Theme;
+
+describe("subagent call rendering", () => {
+  it("shows an explicit starting state while single-mode args are incomplete", () => {
+    const rendered = renderCall({}, theme, { argsComplete: false });
+    const text = rendered.render(80).join("\n");
+
+    expect(text).toContain("subagent starting...");
+    expect(text).toContain("receiving task...");
+    expect(text).not.toContain("subagent ...");
+  });
+
+  it("shows agent and one-line task preview when single-mode args are complete", () => {
+    const rendered = renderCall(
+      { agent: "explorer", task: "Read-only investigation:\ninspect subagent rendering" },
+      theme,
+      { argsComplete: true },
+    );
+    const text = rendered.render(80).join("\n");
+
+    expect(text).toContain("subagent explorer");
+    expect(text).toContain("Read-only investigation: inspect subagent rendering");
+  });
+
+  it("shows explicit missing labels when completed single-mode args are invalid", () => {
+    const rendered = renderCall({}, theme, { argsComplete: true });
+    const text = rendered.render(80).join("\n");
+
+    expect(text).toContain("subagent missing agent");
+    expect(text).toContain("missing task");
+    expect(text).not.toContain("subagent ...");
+  });
+});
 
 describe("formatTokens", () => {
   it("should format small numbers as-is", () => {
@@ -120,6 +152,65 @@ describe("metadata rendering via renderResult", () => {
     expect(text).toContain("context fork");
     expect(text).toContain("worktree /tmp/worktree");
     expect(text).toMatch(/diff\s+\/tmp\/artifacts\/worktree\.diff\.md/);
+  });
+});
+
+describe("single subagent collapsed result preview", () => {
+  it("shows task preview on the collapsed success header", () => {
+    const result: SingleResult = {
+      agent: "explorer",
+      agentSource: "bundled",
+      task: "Read-only investigation: inspect subagent rendering behavior after recent updates",
+      exitCode: 0,
+      messages: [],
+      stderr: "",
+      usage: emptyUsage(),
+    };
+    const details: SubagentDetails = { mode: "single", results: [result] };
+    const rendered = renderResult({ content: [{ type: "text", text: "" }], details }, false, theme);
+    const firstLine = rendered.render(140).join("\n").split("\n")[0];
+
+    expect(firstLine).toContain("✓ explorer (bundled)");
+    expect(firstLine).toContain("Read-only investigation: inspect subagent rendering behavior");
+  });
+
+  it("prefers lastActivity over task preview on the collapsed running header", () => {
+    const result: SingleResult = {
+      agent: "explorer",
+      agentSource: "bundled",
+      task: "Original research task that should not be the header preview while activity exists",
+      exitCode: -1,
+      messages: [],
+      stderr: "",
+      usage: emptyUsage(),
+      lastActivity: { name: "grep", args: { pattern: "renderCall", path: "extensions/agentic-harness" }, timestamp: 123 },
+    };
+    const details: SubagentDetails = { mode: "single", results: [result] };
+    const rendered = renderResult({ content: [{ type: "text", text: "(running...)" }], details }, false, theme);
+    const firstLine = rendered.render(160).join("\n").split("\n")[0];
+
+    expect(firstLine).toContain("⏳ explorer (bundled)");
+    expect(firstLine).toContain("grep /renderCall/ in extensions/agentic-harness");
+    expect(firstLine).not.toContain("Original research task");
+  });
+
+  it("truncates long collapsed task previews", () => {
+    const result: SingleResult = {
+      agent: "worker",
+      agentSource: "bundled",
+      task: `Investigate ${"rendering ".repeat(30)}TAIL_MARKER`,
+      exitCode: 0,
+      messages: [],
+      stderr: "",
+      usage: emptyUsage(),
+    };
+    const details: SubagentDetails = { mode: "single", results: [result] };
+    const rendered = renderResult({ content: [{ type: "text", text: "" }], details }, false, theme);
+    const firstLine = rendered.render(200).join("\n").split("\n")[0];
+
+    expect(firstLine).toContain("Investigate rendering rendering");
+    expect(firstLine).toContain("...");
+    expect(firstLine).not.toContain("TAIL_MARKER");
   });
 });
 

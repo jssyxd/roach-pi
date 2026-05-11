@@ -1,3 +1,31 @@
+# Current: Subagent render ellipsis fix
+
+Done when:
+- [x] Partial single-mode subagent calls no longer render `subagent ...`.
+- [x] Completed invalid args render explicit missing labels.
+- [x] Collapsed completed results include task preview.
+- [x] Collapsed running results prefer `lastActivity` preview.
+- [x] Focused tests, TypeScript build, and full test suite pass.
+
+Plan:
+- [x] Write executable plan at `docs/engineering-discipline/plans/2026-05-11-subagent-render-ellipsis-fix.md`.
+- [x] Execute Task 1: partial args call rendering.
+- [x] Execute Task 2: collapsed result task/activity preview.
+- [x] Execute Task 3: final verification and regression review.
+
+## Review
+
+Completed.
+- `extensions/agentic-harness/render.ts`: added `RenderCallContext`, one-line `previewText`, explicit `starting...` / `receiving task...` / missing-label rendering, and collapsed single-result preview logic preferring `lastActivity` over task.
+- `extensions/agentic-harness/index.ts`: forwards Pi render context to the subagent renderer.
+- `extensions/agentic-harness/tests/render.test.ts`: added focused coverage for incomplete args, valid args, missing completed args, collapsed task preview, lastActivity priority, and truncation.
+- Plan note: corrected the truncation test marker from `end` to `TAIL_MARKER` because `rendering` contains substring `end`.
+- Verification: `cd extensions/agentic-harness && npm test -- tests/render.test.ts` — PASS, 25 tests.
+- Verification: `cd extensions/agentic-harness && npm run build` — PASS.
+- Verification: `cd extensions/agentic-harness && npm test` — PASS, 61 files / 743 tests.
+
+---
+
 # Current: Fix zombie async-run inheritance across pi sessions
 
 Root cause: `restorePersisted` (async-registry.ts:289) blindly loads every
