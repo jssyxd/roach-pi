@@ -160,6 +160,7 @@ describe("RoachFooter status bridge", () => {
     const rendered = footer.render(120).join("\n");
 
     expect(rendered).toContain("Todo 1/3");
+    expect(rendered).toContain("Implement login page");
     expect(rendered).toContain("Add unit tests for login");
     expect(rendered).toContain("Deploy to staging");
 
