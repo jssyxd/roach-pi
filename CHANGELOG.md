@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.27.0](https://github.com/tmdgusya/roach-pi/compare/v1.26.5...v1.27.0) (2026-05-20)
+
+### Features
+
+* **harness:** add todoread/todowrite facade and fix dual-lock race condition ([29c00ea](https://github.com/tmdgusya/roach-pi/commit/29c00ead6815885069b43467a4617624f481c818))
+
 ## [1.26.5](https://github.com/tmdgusya/roach-pi/compare/v1.26.4...v1.26.5) (2026-05-15)
 
 ### Bug Fixes
