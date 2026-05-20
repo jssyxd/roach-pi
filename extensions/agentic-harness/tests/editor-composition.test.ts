@@ -257,6 +257,61 @@ describe("editor composition", () => {
     expect(topPlain).toContain("composed-model");
   });
 
+  it("preserves top scroll indicator instead of replacing with custom border", () => {
+    const scrollIndicator = "\u2500".repeat(40);
+    const scrollLine = "\u2500\u2500\u2500 \u2191 5 more " + "\u2500".repeat(24);
+    const editor = createEditor([scrollLine.slice(0, 40), "content", scrollIndicator]);
+    const ctx: BorderContext = {
+      modelName: "test-model", thinkingLevel: "off", cwd: "/tmp",
+      gitBranch: null, gitDirty: false, contextPercent: 0, contextWindow: 0,
+    };
+    const decorated = decorateEditor(editor, createUi() as any, new EditorStash(), () => ctx);
+    const lines = decorated.render(40);
+    // Top should still contain the scroll arrow, not be replaced with model info
+    expect(lines[0]).toContain("\u2191");
+    expect(lines[0]).not.toContain("test-model");
+  });
+
+  it("preserves bottom scroll indicator instead of replacing with custom border", () => {
+    const scrollIndicator = "\u2500".repeat(40);
+    const scrollLine = "\u2500\u2500\u2500 \u2193 3 more " + "\u2500".repeat(24);
+    const editor = createEditor([scrollIndicator, "content", scrollLine.slice(0, 40)]);
+    const ctx: BorderContext = {
+      modelName: "test-model", thinkingLevel: "off", cwd: "/tmp",
+      gitBranch: null, gitDirty: false, contextPercent: 0, contextWindow: 0,
+    };
+    const decorated = decorateEditor(editor, createUi() as any, new EditorStash(), () => ctx);
+    const lines = decorated.render(40);
+    // Bottom border (before stash line) should still contain the scroll arrow
+    const bottomBorder = lines[lines.length - 2];
+    expect(bottomBorder).toContain("\u2193");
+  });
+
+  it("replaces correct bottom border line when autocomplete lines are present", () => {
+    const bottomBorder = "\u2500".repeat(40);
+    const editor = createEditor([
+      "\u2500".repeat(40),  // top border
+      "content",             // content
+      bottomBorder,          // bottom border
+      "autocomplete-item-1", // autocomplete line (no ─)
+      "autocomplete-item-2", // autocomplete line (no ─)
+    ]);
+    const ctx: BorderContext = {
+      modelName: "m", thinkingLevel: "off", cwd: "/",
+      gitBranch: null, gitDirty: false, contextPercent: 0, contextWindow: 0,
+    };
+    const decorated = decorateEditor(editor, createUi() as any, new EditorStash(), () => ctx);
+    const lines = decorated.render(40);
+    // Bottom border (line index 2) should be replaced
+    const replaced = lines[2].replace(/\x1b\[[0-9;]*m/g, "");
+    expect(replaced).toBe(bottomBorder);
+    // Autocomplete lines should be untouched
+    expect(lines[3]).toBe("autocomplete-item-1");
+    expect(lines[4]).toBe("autocomplete-item-2");
+    // Stash line is last
+    expect(lines[lines.length - 1]).toContain("stash empty");
+  });
+
   it("colorBorder uses oh-my-pi blue instead of double-wrapping theme borderColor", () => {
     const setEditorComponent = vi.fn();
     const existingEditor = createEditor(["line1", "line2"]);

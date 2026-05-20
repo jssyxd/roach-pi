@@ -58,8 +58,32 @@ export function decorateEditor(
       if (ctx) {
         const borderColor = editor.borderColor ?? ((t: string) => t);
         lines = [...lines];
-        lines[0] = buildTopBorder(ctx, width, borderColor);
-        lines[lines.length - 1] = buildBottomBorder(width, borderColor);
+
+        // Replace top border — skip if scroll indicator is showing
+        const topPlain = lines[0]!.replace(/\x1b\[[0-9;]*m/g, "");
+        const isScrolledTop = topPlain.includes("\u2191"); // ↑
+        if (!isScrolledTop) {
+          lines[0] = buildTopBorder(ctx, width, borderColor);
+        }
+
+        // Replace bottom border — find the actual border line (starts with ─)
+        // Autocomplete lines are appended after the bottom border, so don't
+        // blindly replace lines[lines.length - 1].
+        let bottomIdx = -1;
+        for (let i = lines.length - 1; i >= 1; i--) {
+          const stripped = lines[i]!.replace(/\x1b\[[0-9;]*m/g, "").trimStart();
+          if (stripped.startsWith("\u2500")) { // ─
+            bottomIdx = i;
+            break;
+          }
+        }
+        if (bottomIdx >= 0) {
+          const bottomPlain = lines[bottomIdx]!.replace(/\x1b\[[0-9;]*m/g, "");
+          const isScrolledBottom = bottomPlain.includes("\u2193"); // ↓
+          if (!isScrolledBottom) {
+            lines[bottomIdx] = buildBottomBorder(width, borderColor);
+          }
+        }
       }
     }
 
