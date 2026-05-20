@@ -262,14 +262,13 @@ export class RoachFooter implements Component {
     const header = `Todo ${done}/${todos.length}`;
     lines.push(fitLine(`  ${t.fg("accent", t.bold(header))}`, width));
 
-    // Show in_progress item first (most important), then up to 4 most recent non-completed
+    // Show in_progress item first (most important), then others (completed + pending)
     const maxItems = 5;
     const shown: SimpleTodoItem[] = [];
     if (inProgress) shown.push(inProgress);
     for (const todo of todos) {
       if (shown.length >= maxItems) break;
       if (todo === inProgress) continue;
-      if (todo.status === "completed") continue;
       shown.push(todo);
     }
 
