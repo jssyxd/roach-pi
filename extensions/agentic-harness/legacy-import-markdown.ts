@@ -13,19 +13,12 @@
 
 export {
   reconstructPlanProgressFromSessionEntries,
-  reconstructMilestoneProgressFromSessionEntries,
   loadPlanFromAssistantMessageEnd,
   loadPlanFromToolResultEvent,
-  loadMilestonesFromAssistantMessage,
-  detectMilestonesFromToolResult,
   reloadPlanFromSubagentArgs,
   startPlanSubagentTasks,
   completePlanSubagentTasks,
   extractPlanPathsFromArgs,
-  extractMilestonePathsFromArgs,
-  startMilestonesFromSubagentArgs,
   subagentItemRecords,
   getToolExecutionArgs,
 } from "./plan-progress-events.js";
-
-export { isCompletionFilePath, extractMilestoneId } from "./milestone-tracker.js";

@@ -22,21 +22,13 @@ import { convertToLlm, serializeConversation } from "@mariozechner/pi-coding-age
 import { complete } from "@mariozechner/pi-ai";
 import { isDisciplineAgent, augmentAgentWithKarpathy } from "./discipline.js";
 import { PlanProgressTracker } from "./plan-progress.js";
-import { MilestoneTracker, extractMilestoneId } from "./milestone-tracker.js";
-import { isCompletionFilePath } from "./legacy-import-markdown.js";
-import type { MilestoneStatus } from "./milestone-tracker.js";
 import { WorkingVisibilityController } from "./working-visibility.js";
 import {
   completePlanSubagentTasks,
-  detectMilestonesFromToolResult,
-  extractMilestonePathsFromArgs,
   extractPlanPathsFromArgs,
   getToolExecutionArgs,
-  startMilestonesFromSubagentArgs,
-  loadMilestonesFromAssistantMessage,
   loadPlanFromAssistantMessageEnd,
   loadPlanFromToolResultEvent,
-  reconstructMilestoneProgressFromSessionEntries,
   reconstructPlanProgressFromSessionEntries,
   reloadPlanFromSubagentArgs,
   startPlanSubagentTasks,
@@ -92,7 +84,6 @@ let clarificationDone: boolean = false;
 const cacheStats: CacheStats = { totalInput: 0, totalCacheRead: 0 };
 const activeTools: ActiveTools = { running: new Map() };
 const planProgress = new PlanProgressTracker();
-const milestoneTracker = new MilestoneTracker();
 
 async function computeGitStats(cwd: string): Promise<GitStats> {
   const result: GitStats = { ahead: 0, behind: 0, dirty: 0, untracked: 0 };
@@ -155,15 +146,7 @@ function persistProgressSnapshot(ctx: { sessionManager?: any }): void {
       taskStatuses: planProgress.getTaskStatuses(),
     });
   }
-  if (milestoneTracker.hasMilestones()) {
-    const active = milestoneTracker.getActiveMilestone();
-    ctx.sessionManager?.appendCustomEntry?.(MILESTONE_PROGRESS_CUSTOM_TYPE, {
-      milestoneStatuses: milestoneTracker.getMilestoneStatuses(),
-      activeTasks: active?.tasks ?? null,
-      activeMilestoneId: active?.id ?? null,
-    });
-  }
-}
+
 
 const MICROCOMPACTION_ENV = "PI_AGENTIC_MICROCOMPACTION";
 
@@ -1531,18 +1514,13 @@ Do not start multi-step implementation without a clear understanding of what the
       }
 
       if (toolName === "read" || toolName === "write" || toolName === "edit") {
-        const detected = await detectMilestonesFromToolResult(milestoneTracker, {
-          toolName,
-          input: event.input as Record<string, unknown> | undefined,
-          content: event.content,
-        }, ctx.cwd);
         const input = event.input as Record<string, unknown> | undefined;
         const filePath = typeof input?.path === "string"
           ? input.path
           : typeof input?.file_path === "string"
             ? input.file_path
             : "";
-        if (detected && isCompletionFilePath(filePath)) {
+        if (filePath.endsWith("completion.md")) {
           planProgress.clear();
           persistProgressSnapshot(ctx);
         }
@@ -1739,7 +1717,6 @@ Do not start multi-step implementation without a clear understanding of what the
 
       currentPhase = "planning";
       planProgress.clear();
-      milestoneTracker.clear();
       ctx.ui.setStatus("harness", "Agentic planning workflow in progress...");
 
       const topic = args?.trim() || "";
@@ -1767,7 +1744,6 @@ Do not start multi-step implementation without a clear understanding of what the
 
       currentPhase = "ultraplanning";
       planProgress.clear();
-      milestoneTracker.clear();
       ctx.ui.setStatus("harness", "Agentic milestone workflow in progress...");
 
       const topic = args?.trim() || "";
@@ -1997,7 +1973,6 @@ Do not start multi-step implementation without a clear understanding of what the
       currentPhase = "idle";
       activeGoalDocument = null;
       planProgress.clear();
-      milestoneTracker.clear();
       ctx.ui.setStatus("harness", undefined);
       ctx.ui.notify("Workflow phase reset to idle.", "info");
     },
@@ -2120,7 +2095,6 @@ Do not start multi-step implementation without a clear understanding of what the
     // Skip when structured state exists; harness tools handle updates directly.
     if (!harnessProgress?.hasState()) {
       await loadPlanFromAssistantMessageEnd(planProgress, event, ctx.cwd, sessionPlanPaths);
-      loadMilestonesFromAssistantMessage(milestoneTracker, event);
     }
   });
 
@@ -2137,11 +2111,6 @@ Do not start multi-step implementation without a clear understanding of what the
         if (structuredTaskIds.length > 0) {
           planTaskIdsByToolCallId.set(event.toolCallId, structuredTaskIds);
           await persistStructuredSubagentTaskStatuses(ctx, args, structuredTaskIds, "running");
-        }
-
-        const startedMilestones = startMilestonesFromSubagentArgs(milestoneTracker, args);
-        if (startedMilestones.length > 0) {
-          persistProgressSnapshot(ctx);
         }
       }
     }
@@ -2168,27 +2137,6 @@ Do not start multi-step implementation without a clear understanding of what the
           const taskStatus = success ? "completed" : "failed";
           await persistStructuredSubagentTaskStatuses(ctx, args, structuredTaskIds, taskStatus);
         }
-
-        if (hasValidator && planProgress.hasPlan()) {
-          const progress = planProgress.getProgress();
-          if (success && progress.completed === progress.total) {
-            const milestonePaths = [...extractPlanPathsFromArgs(args), ...extractMilestonePathsFromArgs(args)];
-            for (const planPath of milestonePaths) {
-              const extracted = extractMilestoneId(planPath);
-              if (extracted) {
-                milestoneTracker.completeMilestone(extracted.id, true);
-              }
-            }
-          } else if (!success) {
-            const milestonePaths = [...extractPlanPathsFromArgs(args), ...extractMilestonePathsFromArgs(args)];
-            for (const planPath of milestonePaths) {
-              const extracted = extractMilestoneId(planPath);
-              if (extracted) {
-                milestoneTracker.completeMilestone(extracted.id, false);
-              }
-            }
-          }
-        }
       }
     }
 
@@ -2209,7 +2157,6 @@ Do not start multi-step implementation without a clear understanding of what the
     planTaskIdsByToolCallId.clear();
     sessionPlanPaths.clear();
     planProgress.clear();
-    milestoneTracker.clear();
     await getDefaultRegistry().sweepStalePersisted(join(ctx.cwd, ".pi", "agent", "runs"));
     const branchEntries = ctx.sessionManager?.getBranch?.() ?? [];
 
@@ -2240,16 +2187,6 @@ Do not start multi-step implementation without a clear understanding of what the
         createHarnessStateSnapshot(reconstructedState),
       );
       structuredRestore = { rootDir, state: reconstructedState };
-
-      // Populate milestone tracker from structured state
-      if (reconstructedState.milestones.length > 0) {
-        milestoneTracker.loadMilestones(
-          reconstructedState.milestones.map((m) => ({ id: m.id, name: m.name })),
-        );
-        milestoneTracker.restoreMilestoneStatuses(
-          reconstructedState.milestones.map((m) => ({ id: m.id, status: m.status })),
-        );
-      }
 
       // Populate plan tracker from structured state if a plan exists
       const activePlan = selectActivePlan(reconstructedState);
@@ -2289,37 +2226,7 @@ Do not start multi-step implementation without a clear understanding of what the
         }
       }
 
-      if (lastMilestoneSnapshot?.milestoneStatuses) {
-        for (const planPath of sessionPlanPaths) {
-          milestoneTracker.mergeFromPaths([planPath]);
-        }
-        milestoneTracker.restoreMilestoneStatuses(lastMilestoneSnapshot.milestoneStatuses as Array<{ id: string; status: MilestoneStatus }>);
-
-        if (lastMilestoneSnapshot.activeTasks && lastMilestoneSnapshot.activeMilestoneId) {
-          const target = milestoneTracker.getMilestone(lastMilestoneSnapshot.activeMilestoneId);
-          if (target) {
-            target.tasks = lastMilestoneSnapshot.activeTasks;
-          }
-        }
-      }
-
-      if (!milestoneTracker.hasMilestones()) {
-        for (const planPath of sessionPlanPaths) {
-          milestoneTracker.mergeFromPaths([planPath]);
-        }
-      }
-
-      const milestoneReplay = await reconstructMilestoneProgressFromSessionEntries(
-        milestoneTracker,
-        branchEntries,
-        ctx.cwd,
-      );
-      if (milestoneReplay.sawCompletion) {
-        planProgress.clear();
-      }
-    }
-
-    workingVisibility?.restore();
+      workingVisibility?.restore();
     workingVisibility = new WorkingVisibilityController(
       planProgress,
       ctx.ui as { setWorkingVisible?: (visible: boolean) => void },
@@ -2356,7 +2263,7 @@ Do not start multi-step implementation without a clear understanding of what the
         getGitStats: () => gitStats,
         getThinkingLevel: () => undefined,
         getModelInfo: () => getModelInfo(ctx),
-      }, cacheStats, activeTools, planProgress, tui, milestoneTracker, harnessProgress, {
+      }, cacheStats, activeTools, planProgress, tui, harnessProgress, {
         preset: uiSettings.footerPreset,
         glyphs: uiSettings.footerGlyphs,
       });

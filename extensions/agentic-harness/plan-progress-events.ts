@@ -2,33 +2,7 @@ import { readFile } from "fs/promises";
 import { isAbsolute, resolve } from "path";
 import { parsePlan } from "./plan-parser.js";
 import type { PlanProgressTracker, TaskStatus } from "./plan-progress.js";
-import { parseStateMd, isMilestoneDirectoryPath, extractMilestoneId, isTodoFilePath, parseTodoMd, isCompletionFilePath, parseCompletionMd, type MilestoneStatus, type MilestoneTracker } from "./milestone-tracker.js";
 
-const STATE_TABLE_IN_MESSAGE_RE = /[|│]\s*(M\d+)\s*[|│]/;
-
-export function loadMilestonesFromAssistantMessage(
-  milestoneTracker: MilestoneTracker,
-  event: unknown,
-): boolean {
-  if (!event || typeof event !== "object") return false;
-  const message = (event as { message?: unknown }).message;
-  if (!message || typeof message !== "object") return false;
-  if ((message as { role?: unknown }).role !== "assistant") return false;
-
-  const text = extractMessageText(message);
-  if (!text) return false;
-
-  if (!STATE_TABLE_IN_MESSAGE_RE.test(text)) return false;
-
-  const parsed = parseStateMd(text);
-  if (parsed.length === 0) return false;
-
-  milestoneTracker.loadMilestones(parsed.map((m) => ({ id: m.id, name: m.name })));
-  for (const m of parsed) {
-    milestoneTracker.setStatus(m.id, m.status);
-  }
-  return true;
-}
 
 export type PlanLoadOptions = {
   text?: string;
@@ -87,30 +61,6 @@ function addReads(paths: string[], reads: unknown): void {
   for (const readPath of reads) addPlanPath(paths, readPath);
 }
 
-const MILESTONE_PATH_IN_TEXT_RE = /[^\s"'`<>),]*milestones\/M\d+-[^\s"'`<>),]+\.md/gi;
-
-function addMilestonePath(paths: string[], candidate: unknown): void {
-  if (typeof candidate !== "string") return;
-  if (extractMilestoneId(candidate) && !paths.includes(candidate)) {
-    paths.push(candidate);
-  }
-}
-
-function addMilestonePathsFromText(paths: string[], text: unknown): void {
-  if (typeof text !== "string") return;
-  for (const match of text.matchAll(MILESTONE_PATH_IN_TEXT_RE)) {
-    addMilestonePath(paths, match[0]);
-  }
-}
-
-function addMilestoneReads(paths: string[], reads: unknown): void {
-  if (!Array.isArray(reads)) return;
-  for (const readPath of reads) {
-    addMilestonePath(paths, readPath);
-    addMilestonePathsFromText(paths, readPath);
-  }
-}
-
 function addSubagentItems(paths: string[], items: unknown): void {
   if (!Array.isArray(items)) return;
   for (const item of items) {
@@ -162,46 +112,6 @@ export function extractMilestonePathsFromArgs(args: unknown): string[] {
   }
 
   return paths;
-}
-
-export function milestoneStatusForSubagentArgs(args: unknown): MilestoneStatus | null {
-  const agents = subagentItemRecords(args)
-    .map((item) => typeof item.agent === "string" ? item.agent : "")
-    .filter(Boolean);
-
-  if (agents.includes("plan-validator")) return "validating";
-  if (agents.includes("plan-worker") || agents.includes("plan-compliance")) return "executing";
-  if (extractMilestonePathsFromArgs(args).length > 0) return "planning";
-  return null;
-}
-
-export function startMilestonesFromSubagentArgs(
-  milestoneTracker: MilestoneTracker,
-  args: unknown,
-): string[] {
-  const paths = extractMilestonePathsFromArgs(args);
-  if (paths.length === 0) return [];
-
-  milestoneTracker.mergeFromPaths(paths);
-
-  const status = milestoneStatusForSubagentArgs(args);
-  if (!status) return [];
-
-  const started: string[] = [];
-  for (const path of paths) {
-    const extracted = extractMilestoneId(path);
-    if (!extracted) continue;
-
-    const milestone = milestoneTracker.getMilestone(extracted.id);
-    if (!milestone) continue;
-    if (milestone.status === "completed" || milestone.status === "failed" || milestone.status === "skipped") continue;
-
-    milestoneTracker.setStatus(extracted.id, status);
-    started.push(extracted.id);
-    if (status === "planning") break;
-  }
-
-  return started;
 }
 
 export function extractToolResultText(content: unknown): string | undefined {
@@ -386,62 +296,6 @@ function extractCustomEntrySnapshot(entry: unknown): TaskStatusSnapshot[] | null
   const data = record.data as { taskStatuses?: unknown };
   if (!Array.isArray(data.taskStatuses)) return null;
   return data.taskStatuses as TaskStatusSnapshot[];
-}
-
-export async function reconstructMilestoneProgressFromSessionEntries(
-  milestoneTracker: MilestoneTracker,
-  entries: unknown[],
-  cwd?: string,
-): Promise<{ changed: boolean; sawCompletion: boolean }> {
-  const toolCallArgsById = new Map<string, Record<string, unknown>>();
-  let changed = false;
-  let sawCompletion = false;
-
-  for (const entry of entries) {
-    const message = getMessageFromEntry(entry);
-    if (!message || typeof message !== "object") continue;
-
-    const role = (message as { role?: unknown }).role;
-
-    if (role === "assistant") {
-      if (loadMilestonesFromAssistantMessage(milestoneTracker, { message })) {
-        changed = true;
-      }
-      for (const call of extractAssistantToolCalls(message)) {
-        toolCallArgsById.set(call.id, call.args);
-      }
-      continue;
-    }
-
-    if (role !== "toolResult") continue;
-
-    const toolCallId = (message as { toolCallId?: unknown }).toolCallId;
-    const toolName = (message as { toolName?: unknown }).toolName;
-    if (typeof toolCallId !== "string" || typeof toolName !== "string") continue;
-
-    const args = toolCallArgsById.get(toolCallId);
-    if (args && (toolName === "read" || toolName === "write" || toolName === "edit")) {
-      const detected = await detectMilestonesFromToolResult(milestoneTracker, {
-        toolName,
-        input: args,
-        content: (message as { content?: unknown }).content,
-      }, cwd);
-      if (detected) changed = true;
-
-      const filePath = typeof args.path === "string"
-        ? args.path
-        : typeof args.file_path === "string"
-          ? args.file_path
-          : "";
-      if (detected && isCompletionFilePath(filePath)) {
-        sawCompletion = true;
-      }
-    }
-
-    toolCallArgsById.delete(toolCallId);
-  }
-
-  return { changed, sawCompletion };
 }
 
 export async function reconstructPlanProgressFromSessionEntries(
@@ -676,126 +530,4 @@ export function completePlanSubagentTasks(
     if (matchedId !== null) completedIds.push(matchedId);
   }
   return uniqueNumbers(completedIds);
-}
-
-const STATE_MD_RE = /(?:^|\/)state\.md$/i;
-
-export async function detectMilestonesFromToolResult(
-  milestoneTracker: MilestoneTracker,
-  event: { toolName: string; input?: Record<string, unknown>; content?: unknown },
-  cwd?: string,
-): Promise<boolean> {
-  if (event.toolName !== "read" && event.toolName !== "write" && event.toolName !== "edit") return false;
-
-  const filePath = typeof event.input?.path === "string"
-    ? event.input.path
-    : typeof event.input?.file_path === "string"
-      ? event.input.file_path
-      : "";
-  if (!filePath) return false;
-
-  let changed = false;
-
-  if (isMilestoneDirectoryPath(filePath)) {
-    const extracted = extractMilestoneId(filePath);
-    if (extracted) {
-      milestoneTracker.mergeFromPaths([filePath]);
-      changed = true;
-    }
-  }
-
-  if (STATE_MD_RE.test(filePath)) {
-    let text: string | undefined;
-    if (event.toolName === "write") {
-      text = typeof event.input?.content === "string" ? event.input.content : undefined;
-    } else if (event.toolName === "read") {
-      text = extractToolResultText(event.content);
-    }
-
-    if (text) {
-      const parsed = parseStateMd(text);
-      if (parsed.length > 0) {
-        // state.md is the source of truth for the active harness; replace stale milestones.
-        milestoneTracker.loadMilestones(parsed.map((m) => ({ id: m.id, name: m.name })));
-        for (const m of parsed) {
-          milestoneTracker.setStatus(m.id, m.status);
-        }
-        changed = true;
-      }
-    }
-
-    if (!changed) {
-      try {
-        const resolved = isAbsolute(filePath) ? filePath : resolve(cwd ?? process.cwd(), filePath);
-        const diskText = await readFile(resolved, "utf-8");
-        const parsed = parseStateMd(diskText);
-        if (parsed.length > 0) {
-          milestoneTracker.loadMilestones(parsed.map((m) => ({ id: m.id, name: m.name })));
-          for (const m of parsed) {
-            milestoneTracker.setStatus(m.id, m.status);
-          }
-          changed = true;
-        }
-      } catch {
-        // Ignore missing or unreadable session files.
-      }
-    }
-  }
-
-  if (isCompletionFilePath(filePath)) {
-    let text: string | undefined;
-    if (event.toolName === "write") {
-      text = typeof event.input?.content === "string" ? event.input.content : undefined;
-    } else if (event.toolName === "read") {
-      text = extractToolResultText(event.content);
-    }
-
-    if (!text) {
-      try {
-        const resolved = isAbsolute(filePath) ? filePath : resolve(cwd ?? process.cwd(), filePath);
-        text = await readFile(resolved, "utf-8");
-      } catch {
-        // Ignore missing or unreadable session files.
-      }
-    }
-
-    if (text) {
-      const parsed = parseCompletionMd(text);
-      if (parsed.length > 0) {
-        milestoneTracker.loadMilestones(parsed.map((m) => ({ id: m.id, name: m.name })));
-        for (const m of parsed) {
-          milestoneTracker.setStatus(m.id, m.status);
-        }
-        changed = true;
-      }
-    }
-  }
-
-  if (isTodoFilePath(filePath)) {
-    let text: string | undefined;
-    if (event.toolName === "write") {
-      text = typeof event.input?.content === "string" ? event.input.content : undefined;
-    } else if (event.toolName === "read") {
-      text = extractToolResultText(event.content);
-    }
-
-    if (!text) {
-      try {
-        const resolved = isAbsolute(filePath) ? filePath : resolve(cwd ?? process.cwd(), filePath);
-        text = await readFile(resolved, "utf-8");
-      } catch {
-        // Ignore missing or unreadable session files.
-      }
-    }
-
-    if (text) {
-      const tasks = parseTodoMd(text);
-      if (tasks.length > 0) {
-        milestoneTracker.updateActiveTasks(tasks);
-        changed = true;
-      }
-    }
-  }
-
-  return changed;
 }
