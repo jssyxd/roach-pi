@@ -156,7 +156,7 @@ function getExtensionStatusText(statuses: ReadonlyMap<string, string>): string |
 function renderPowerlineLine(segments: FooterSegment[], width: number, glyphs: FooterGlyphMode): string {
   if (width <= 0 || segments.length === 0) return "";
 
-  const separator = glyphs === "nerd" ? "" : "|";
+  const separator = glyphs === "nerd" ? "" : "";
   const parts: string[] = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
@@ -170,9 +170,11 @@ function renderPowerlineLine(segments: FooterSegment[], width: number, glyphs: F
     parts.push(`${color.fg}${color.bg}${text}`);
 
     if (i < segments.length - 1) {
-      parts.push(`\x1b[38;2;${extractRgb(color.bg)}m${nextColor.bg}${separator}`);
+      const separatorFg = glyphs === "nerd" ? `\x1b[38;2;${extractRgb(color.bg)}m` : nextColor.fg;
+      parts.push(`${separatorFg}${nextColor.bg}${separator}`);
     } else {
-      parts.push(`\x1b[38;2;${extractRgb(color.bg)}m\x1b[49m${separator}${RESET}`);
+      const separatorFg = glyphs === "nerd" ? `\x1b[38;2;${extractRgb(color.bg)}m` : POWERLINE_COLORS.default.fg;
+      parts.push(`${separatorFg}\x1b[49m${separator}${RESET}`);
     }
   }
 
