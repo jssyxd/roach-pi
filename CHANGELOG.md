@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.28.0](https://github.com/tmdgusya/roach-pi/compare/v1.27.0...v1.28.0) (2026-05-21)
+
+### Features
+
+* **editor-border:** add fitBorder helper and segment builders for omp-style border ([e9a0e29](https://github.com/tmdgusya/roach-pi/commit/e9a0e297a0252f4341c7939e578c1b6e0dbc74e2))
+* **editor-composition:** integrate border builders and use oh-my-pi blue ([5747d34](https://github.com/tmdgusya/roach-pi/commit/5747d345248bbb57e4dc8f8005052f6cbf39e79a)), closes [#178fb9](https://github.com/tmdgusya/roach-pi/issues/178fb9)
+* **footer:** connect senpi-style todos to footer rendering ([6d4e40a](https://github.com/tmdgusya/roach-pi/commit/6d4e40ab1f49d576e1f66c6e40acf3c944d5ac76))
+* **footer:** show completed todos with ✓ icon ([f734be0](https://github.com/tmdgusya/roach-pi/commit/f734be099718b89943a58f7c2bf2a854497a1167))
+* **harness:** inject progress tracking rules into system prompt for all users ([2ceb2f0](https://github.com/tmdgusya/roach-pi/commit/2ceb2f096aebf8120d57a55d6fcd01ea7948e77c))
+
+### Bug Fixes
+
+* **agentic-harness:** satisfy strict build types ([48ae4c0](https://github.com/tmdgusya/roach-pi/commit/48ae4c0d5013787913c099bff4135335e334edda))
+* **editor-border:** preserve scroll indicators and handle autocomplete lines in border replacement ([9cb58ce](https://github.com/tmdgusya/roach-pi/commit/9cb58ce6fb2e1e024b1908db315ca33f5c91e3a3))
+* **footer:** re-enable structured milestone/todo rendering ([8393c44](https://github.com/tmdgusya/roach-pi/commit/8393c44575f1e745e439a509278ae19ce1d5df40))
+* **skills:** add plan checkbox auto-update rule to run-plan skills ([99191c5](https://github.com/tmdgusya/roach-pi/commit/99191c5976a2abfdea94dc0013d519ac7b420efe))
+
+### Documentation
+
+* remove milestone-tracker terminology from skills and system prompt ([0c0e070](https://github.com/tmdgusya/roach-pi/commit/0c0e0707b2fb4a4e716e3250476734723d29ca8e))
+
+### Refactor
+
+* **footer:** remove harnessProgress, simple todo only ([a4e2dd6](https://github.com/tmdgusya/roach-pi/commit/a4e2dd6be8832d061028d28d69a1e6162615cb48))
+* remove completion.md-based planProgress.clear() ([5e2dc39](https://github.com/tmdgusya/roach-pi/commit/5e2dc39557461830e235a6079517a3bb81a00e61))
+* remove milestone-tracker completely ([d934632](https://github.com/tmdgusya/roach-pi/commit/d934632597b6f38cd5e534954e749203a18fc100))
+* remove PlanProgressTracker and all file-scanning plan progress ([42f4d1c](https://github.com/tmdgusya/roach-pi/commit/42f4d1cb09bdcd3b41166beaeb892ad19ee6b58f))
+* simplify todowrite/todoread to senpi-style ([d87d6fa](https://github.com/tmdgusya/roach-pi/commit/d87d6fa68a3fb5702dc20e5c38e028b0545e130a))
+
 ## [1.27.0](https://github.com/tmdgusya/roach-pi/compare/v1.26.5...v1.27.0) (2026-05-20)
 
 ### Features
