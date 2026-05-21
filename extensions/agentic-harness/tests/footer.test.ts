@@ -70,15 +70,15 @@ function expectAllLinesFit(lines: string[], width: number): void {
 }
 
 describe("RoachFooter Powerline styling", () => {
-  it("defaults to plain footer glyphs without Nerd Font separators", () => {
+  it("defaults to plain footer glyphs without Nerd Font or literal separators", () => {
     const rendered = createFooter().render(100).join("\n");
 
     expect(rendered).not.toContain("");
+    expect(rendered).not.toContain("|");
     expect(rendered).not.toContain(ICONS.folder);
     expect(rendered).not.toContain(ICONS.branch);
     expect(rendered).not.toContain(ICONS.model);
     expect(rendered).not.toContain(ICONS.thinking);
-    expect(rendered).toContain("|");
     expect(rendered).toContain(ICONS_PLAIN.folder);
   });
 
@@ -117,8 +117,32 @@ describe("RoachFooter Powerline styling", () => {
     expect(rendered).toContain("\x1b[48;2;0;175;175m");
     expect(rendered).toContain("\x1b[48;2;215;135;175m");
     expect(rendered).toContain("\x1b[48;2;200;150;50m");
-    expect(rendered).toContain("|");
+    expect(rendered).not.toContain("|");
     expect(rendered).not.toContain("");
+  });
+
+  it("does not insert visible separator columns in plain glyph mode", () => {
+    const footer = new RoachFooter(
+      ansiTheme,
+      footerData(),
+      {
+        cwd: "/tmp/powerline-project",
+        getModelName: () => "test-model",
+        getContextUsage: () => ({ tokens: 42_000, contextWindow: 200_000, percent: 21 }),
+        getGitStats: () => ({ ahead: 0, behind: 0, dirty: 0, untracked: 0 }),
+        getThinkingLevel: () => "high",
+        getModelInfo: () => ({ name: "test-model", isLatest: false }),
+      },
+      { totalInput: 100, totalCacheRead: 50 },
+      { running: new Map() },
+      null,
+      { glyphs: "plain" },
+    );
+
+    const rendered = footer.render(100).join("\n");
+
+    expect(rendered).not.toContain("|");
+    expect(rendered).not.toContain("\x1b[38;2;0;175;175m\x1b[48;2;215;135;175m|");
   });
 });
 
