@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  Built on <a href="https://github.com/badlogic/pi-mono">pi</a>. Focused on transparent prompts, verifiable execution, subagents, code review, memory, LSP, and fast search.
+  Built on <a href="https://github.com/badlogic/pi-mono">pi</a>. Focused on transparent prompts, verifiable execution, subagents, code review, memory, LSP, MCP, and fast search.
 </p>
 
 ---
@@ -31,6 +31,7 @@
 - [Review Pipelines](#review-pipelines)
 - [FFF Search](#fff-search)
 - [LSP Code Intelligence](#lsp-code-intelligence)
+- [MCP Adapter](#mcp-adapter)
 - [Workspace Memory](#workspace-memory)
 - [Session Loop](#session-loop)
 - [Autonomous Dev](#autonomous-dev-experimental)
@@ -58,10 +59,10 @@ It is intentionally inspectable: commands, tools, hooks, agents, and skills are 
 
 ## Architecture
 
-Seven bundled extensions, one disciplined engineering loop:
+Eight bundled extensions, one disciplined engineering loop:
 
 <p align="center">
-  <img src="assets/architecture-overview.svg" alt="ROACH PI extension architecture showing all seven modules" width="88%">
+  <img src="assets/architecture-overview.svg" alt="ROACH PI extension architecture showing all eight modules" width="88%">
 </p>
 
 ---
@@ -231,6 +232,30 @@ Supports **40+ language server configs** out of the box.
 
 ---
 
+## MCP Adapter
+
+The bundled [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter) extension gives pi access to MCP (Model Context Protocol) servers without burning the context window. Instead of registering hundreds of tool definitions upfront, a single proxy tool (~200 tokens) discovers and calls MCP tools on-demand.
+
+```text
+mcp({ search: "screenshot" })              # discover tools by keyword
+mcp({ tool: "chrome_devtools_take_screenshot", args: '{"format": "png"}' })  # call a tool
+```
+
+Servers are **lazy by default** — they only connect when you actually use their tools, and disconnect after idle timeout. Specific tools can be promoted to first-class Pi tools via `directTools` config.
+
+| Command | Description |
+|---|---|
+| `/mcp` | Interactive server panel with connection status and tool toggles |
+| `/mcp setup` | Guided first-run setup (import existing configs, scaffold `.mcp.json`) |
+| `/mcp tools` | List all available MCP tools |
+| `/mcp reconnect [server]` | Connect or reconnect a server |
+| `/mcp logout <server>` | Clear stored OAuth credentials |
+| `/mcp-auth [server]` | OAuth authentication flow |
+
+Configuration reads standard MCP files automatically: `~/.config/mcp/mcp.json`, `.mcp.json`, or Pi-specific overrides in `~/.pi/agent/mcp.json`.
+
+---
+
 ## Workspace Memory
 
 <p align="center">
@@ -337,6 +362,17 @@ pi --no-nested-agents    Disable at startup
 | `/loop-stop [job-id]` | Stop one loop job |
 | `/loop-stop-all` | Stop all loop jobs |
 
+### MCP
+
+| Command | Description |
+|---|---|
+| `/mcp` | Interactive MCP server panel |
+| `/mcp setup` | Guided first-run setup |
+| `/mcp tools` | List all MCP tools |
+| `/mcp reconnect [server]` | Connect or reconnect a server |
+| `/mcp logout <server>` | Clear stored OAuth credentials |
+| `/mcp-auth [server]` | OAuth authentication flow |
+
 ### Setup and Experimental
 
 | Command | Description |
@@ -363,6 +399,7 @@ pi --no-nested-agents    Disable at startup
 | `memory_save` | Save structured workspace memories |
 | `team` | Optional team orchestration (gated by `PI_ENABLE_TEAM_MODE=1`) |
 | `lsp_*` | Diiagnostics, definitions, references, symbols, and rename |
+| `mcp` | MCP proxy — search, describe, and call MCP server tools |
 
 ---
 
@@ -449,7 +486,7 @@ docs/engineering-discipline/
 assets/                # README visuals
 ```
 
-Bundled package dependencies also include `pi-lsp-client` and `@code-yeongyu/pi-nested-agents-md`.
+Bundled package dependencies also include `pi-lsp-client`, `pi-mcp-adapter`, and `@code-yeongyu/pi-nested-agents-md`.
 
 ---
 
