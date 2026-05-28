@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.32.0](https://github.com/tmdgusya/roach-pi/compare/v1.31.0...v1.32.0) (2026-05-28)
+
+### Features
+
+* **agentic-harness:** add shimmer working status ([98afe19](https://github.com/tmdgusya/roach-pi/commit/98afe193593aa64d8a4796a5b730378fb60dcb49))
+
 ## [1.31.0](https://github.com/tmdgusya/roach-pi/compare/v1.30.0...v1.31.0) (2026-05-28)
 
 ### Features
