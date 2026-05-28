@@ -53,7 +53,7 @@
 ROACH PI is an extension suite for the pi coding agent. It turns a normal coding session into a disciplined engineering loop:
 
 <p align="center">
-  <img src="assets/workflow-preview.svg" alt="ROACH PI workflow: clarify → goal → verifier-guarded continuation" width="88%">
+  <img src="assets/workflow-goal-preview.svg" alt="ROACH PI workflow: clarify → goal → verifier-guarded continuation" width="88%">
 </p>
 
 It is intentionally inspectable: commands, tools, hooks, agents, and skills are plain TypeScript and Markdown in this repository.
