@@ -5,6 +5,7 @@ import {
   ClarificationGateError,
   createClarificationState,
   getClarificationGateIssues,
+  renderClarificationOneLine,
   REQUIRED_CLARIFICATION_CHECKLIST,
 } from "../clarification-state.js";
 
@@ -16,6 +17,31 @@ describe("clarification state", () => {
     expect(state.checklist.map((item) => item.id)).toEqual([...REQUIRED_CLARIFICATION_CHECKLIST]);
     expect(canDraftGoalContract(state)).toBe(false);
     expect(getClarificationGateIssues(state)).toContain("Required checklist item is incomplete: Objective");
+  });
+
+  it("summarizes interview state in one line for the collapsed tool result", () => {
+    let state = createClarificationState("run-1", "2026-05-29T00:00:00.000Z", "ship feature");
+    expect(renderClarificationOneLine(state)).toBe(
+      `clarification: interviewing · checklist 0/${REQUIRED_CLARIFICATION_CHECKLIST.length} · Gate: BLOCKED`,
+    );
+
+    state = applyClarificationCommand(state, {
+      type: "mark_checklist_item",
+      id: REQUIRED_CLARIFICATION_CHECKLIST[0],
+      value: "objective clarified",
+    }, { now: "2026-05-29T00:00:01.000Z" }).state;
+    state = applyClarificationCommand(state, {
+      type: "add_ambiguity",
+      id: "amb-1",
+      question: "Which users?",
+      blocking: true,
+    }, { now: "2026-05-29T00:00:02.000Z" }).state;
+
+    const line = renderClarificationOneLine(state);
+    expect(line).toContain("checklist 1/" + REQUIRED_CLARIFICATION_CHECKLIST.length);
+    expect(line).toContain("Gate: BLOCKED");
+    expect(line).toContain("1 blocking");
+    expect(line.split("\n")).toHaveLength(1);
   });
 
   it("blocks Goal Contract drafting until checklist and blocking ambiguities are resolved", () => {

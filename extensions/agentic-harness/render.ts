@@ -2,6 +2,11 @@ import * as os from "os";
 import { getMarkdownTheme, type Theme } from "@mariozechner/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
 import type { Component } from "@mariozechner/pi-tui";
+import {
+  renderClarificationGateSummary,
+  renderClarificationOneLine,
+  type ClarificationState,
+} from "./clarification-state.js";
 import type { PiToolName } from "./pi-tools.js";
 import {
   type DisplayItem,
@@ -132,6 +137,25 @@ function renderDisplayItems(items: DisplayItem[], expanded: boolean, fg: ThemeFg
   if (skipped > 0) text += fg("muted", `... ${skipped} earlier lines\n`);
   text += toShow.join("\n");
   return text.trimEnd();
+}
+
+export function renderClarificationStateCall(args: Record<string, any>, theme: Theme): Component {
+  const action = typeof args?.action === "string" && args.action ? args.action : "status";
+  return new Text(theme.fg("toolTitle", theme.bold("clarification")) + theme.fg("muted", ` ${action}`), 0, 0);
+}
+
+export function renderClarificationStateResult(
+  result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+  expanded: boolean,
+  theme: Theme,
+): Component {
+  const state = result.details as ClarificationState | undefined;
+  if (expanded) {
+    const full = state ? renderClarificationGateSummary(state) : result.content[0]?.text ?? "";
+    return new Text(theme.fg("toolOutput", full), 0, 0);
+  }
+  const summary = state ? renderClarificationOneLine(state) : result.content[0]?.text?.split("\n")[0] ?? "clarification";
+  return new Text(`${theme.fg("muted", summary)} ${theme.fg("dim", "(Ctrl+O to expand)")}`, 0, 0);
 }
 
 export function renderCall(

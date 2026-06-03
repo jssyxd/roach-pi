@@ -149,10 +149,10 @@ describe("goal continuation", () => {
     expect(planGoalContinuation(state, receipt, { ...rootContext(), subagentDepth: 1 })).toEqual({ action: "none", reason: "subagent context" });
   });
 
-  it("stops automation at the max failure budget", () => {
+  it("keeps retrying after repeated failures without a max failure budget", () => {
     let state = stateWithGoal();
     let latestReceipt!: GoalVerifierReceipt;
-    for (let index = 1; index <= 3; index += 1) {
+    for (let index = 1; index <= 5; index += 1) {
       latestReceipt = failReceipt(state.goals[0], `receipt-${index}`);
       state = applyGoalCommand(state, {
         type: "record_verifier_result",
@@ -160,7 +160,12 @@ describe("goal continuation", () => {
       }, { now: `2026-05-28T00:0${index}:00.000Z` }).state;
     }
 
-    expect(planGoalContinuation(state, latestReceipt, rootContext())).toEqual({ action: "none", reason: "max verifier failures reached" });
+    expect(planGoalContinuation(state, latestReceipt, rootContext())).toMatchObject({
+      action: "follow_up",
+      reason: "verifier_fail",
+      targetType: "goal",
+      targetId: "goal-1",
+    });
   });
 });
 

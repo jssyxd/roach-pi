@@ -15,6 +15,7 @@ export interface CodePreviewSettings {
   shikiTheme: string;
   diffIntensity: DiffBackgroundIntensity;
   wordEmphasis: DiffWordEmphasis;
+  compactPreviews: boolean;
   readCollapsedLines: number;
   readContentPreview: boolean;
   writeCollapsedLines: number;
@@ -37,6 +38,7 @@ export const defaultCodePreviewSettings: CodePreviewSettings = {
   shikiTheme: envTheme("CODE_PREVIEW_THEME", "dark-plus"),
   diffIntensity: envDiffIntensity("CODE_PREVIEW_DIFF_INTENSITY", "subtle"),
   wordEmphasis: envDiffWordEmphasis("CODE_PREVIEW_WORD_EMPHASIS", "all"),
+  compactPreviews: envBoolean("CODE_PREVIEW_COMPACT", true),
   readCollapsedLines: envNumber("CODE_PREVIEW_READ_LINES", 10),
   readContentPreview: envBoolean("CODE_PREVIEW_READ_CONTENT", true),
   writeCollapsedLines: envNumber("CODE_PREVIEW_WRITE_LINES", 10),
@@ -74,6 +76,7 @@ export function normalizeSettings(
   const shikiTheme = getObjectValue(data, "shikiTheme");
   const diffIntensity = getObjectValue(data, "diffIntensity");
   const wordEmphasis = getObjectValue(data, "wordEmphasis");
+  const compactPreviews = getObjectValue(data, "compactPreviews");
   const readContentPreview = getObjectValue(data, "readContentPreview");
   const grepResultPreview = getObjectValue(data, "grepResultPreview");
   const findResultPreview = getObjectValue(data, "findResultPreview");
@@ -90,6 +93,8 @@ export function normalizeSettings(
       ? diffIntensity
       : fallback.diffIntensity,
     wordEmphasis: isDiffWordEmphasis(wordEmphasis) ? wordEmphasis : fallback.wordEmphasis,
+    compactPreviews:
+      typeof compactPreviews === "boolean" ? compactPreviews : fallback.compactPreviews,
     readCollapsedLines: coerceNumber(
       getObjectValue(data, "readCollapsedLines"),
       fallback.readCollapsedLines,
@@ -140,6 +145,7 @@ export function updateSetting(
   if (id === "shikiTheme" && isBundledThemeName(value)) next.shikiTheme = value;
   else if (id === "diffIntensity" && isDiffBackgroundIntensity(value)) next.diffIntensity = value;
   else if (id === "wordEmphasis" && isDiffWordEmphasis(value)) next.wordEmphasis = value;
+  else if (id === "compactPreviews") next.compactPreviews = value === "on";
   else if (id === "readCollapsedLines")
     next.readCollapsedLines = coerceStringNumber(value, current.readCollapsedLines);
   else if (id === "readContentPreview") next.readContentPreview = value === "on";

@@ -15,7 +15,7 @@
       "extensions/workspace-memory/index.ts",
       "node_modules/@code-yeongyu/pi-nested-agents-md/src/index.ts",
       "node_modules/pi-lsp-client/src/index.ts",
-      "node_modules/pi-mcp-adapter/index.ts",
+      "extensions/pi-mcp-adapter/index.ts",
       "extensions/pi-code-previews/index.ts"
     ]
   },
@@ -47,5 +47,10 @@
     "@code-yeongyu/pi-nested-agents-md",
     "pi-lsp-client",
     "pi-mcp-adapter"
+  ],
+  "trustedDependencies": [
+    "@google/genai",
+    "koffi",
+    "protobufjs"
   ]
 }

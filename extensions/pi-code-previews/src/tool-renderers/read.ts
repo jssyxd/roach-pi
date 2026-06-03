@@ -2,13 +2,20 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createReadToolDefinition, getLanguageFromPath } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { getPathArg, getReadStartLine, getTextContent, isTruncated } from "../data.ts";
-import { hiddenPreviewExpandHint, metadata, previewFooter, showingFooter } from "../format.ts";
+import {
+  compactResultLine,
+  countLabel,
+  hiddenPreviewExpandHint,
+  metadata,
+  previewFooter,
+  showingFooter,
+} from "../format.ts";
 import { resolvePreviewLanguage } from "../language.ts";
 import { renderDisplayPath } from "../paths.ts";
 import { codePreviewSettings } from "../settings.ts";
 import { normalizeShikiLanguage, shouldSkipHighlight } from "../shiki.ts";
 import { escapeControlChars } from "../terminal-text.ts";
-import { renderHighlightedPreviewText, withSecretWarning } from "./common.ts";
+import { countFileLines, renderHighlightedPreviewText, withSecretWarning } from "./common.ts";
 
 export function registerRead(pi: ExtensionAPI, cwd: string) {
   const originalRead = createReadToolDefinition(cwd);
@@ -54,6 +61,12 @@ export function registerRead(pi: ExtensionAPI, cwd: string) {
           0,
           0,
         );
+      }
+
+      if (!expanded && codePreviewSettings.compactPreviews) {
+        const total = countFileLines(firstText);
+        if (total > 0)
+          return new Text(compactResultLine(theme, `Read ${countLabel(total, "line")}`), 0, 0);
       }
 
       if (!expanded && !codePreviewSettings.readContentPreview)

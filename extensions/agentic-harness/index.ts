@@ -13,7 +13,7 @@ import { fileURLToPath } from "url";
 import { discoverAgents, type SubagentContextMode } from "./agents.js";
 import { runAgent, mapWithConcurrencyLimit, MAX_CONCURRENCY, MAX_PARALLEL_TASKS, resolveDepthConfig, getCycleViolations } from "./subagent.js";
 import { emptyUsage, getFinalOutput, isResultError, isResultSuccess, getResultSummaryText, type SingleResult, type SubagentDetails } from "./types.js";
-import { renderCall, renderResult } from "./render.js";
+import { renderCall, renderResult, renderClarificationStateCall, renderClarificationStateResult } from "./render.js";
 import { readFileSync } from "fs";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { microcompactMessages, getCompactionPrompt, formatCompactSummary, buildGoalCompactionSummary, buildClarificationCompactionSummary } from "./compaction.js";
@@ -482,6 +482,8 @@ export default function (pi: ExtensionAPI) {
         "Do not draft a Goal Contract until clarification_state reports Gate: PASS.",
       ],
       parameters: ClarificationStateParams,
+      renderCall: (args, theme) => renderClarificationStateCall(args, theme),
+      renderResult: (result, { expanded }, theme) => renderClarificationStateResult(result, expanded, theme),
       execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
         const toolCtx = ctx as any;
         const runId = resolveSessionScopedRunId(toolCtx);

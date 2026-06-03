@@ -2,7 +2,13 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createFindToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { getTextContent } from "../data.ts";
-import { hiddenPreviewExpandHint, showingFooter, trimSingleTrailingNewline } from "../format.ts";
+import {
+  compactResultLine,
+  countLabel,
+  hiddenPreviewExpandHint,
+  showingFooter,
+  trimSingleTrailingNewline,
+} from "../format.ts";
 import { renderPathListLines } from "../path-list-rendering.ts";
 import { renderDisplayPath } from "../paths.ts";
 import { codePreviewSettings } from "../settings.ts";
@@ -38,6 +44,10 @@ export function registerFind(pi: ExtensionAPI, cwd: string) {
         return new Text(hiddenPreviewExpandHint(theme), 0, 0);
       if (!output || output === "No files found matching pattern")
         return new Text(theme.fg("muted", output || "No files found"), 0, 0);
+      if (!expanded && codePreviewSettings.compactPreviews) {
+        const count = output.split("\n").length;
+        return new Text(compactResultLine(theme, countLabel(count, "path")), 0, 0);
+      }
       if (expanded && !codePreviewSettings.findResultPreview)
         return new Text(
           output

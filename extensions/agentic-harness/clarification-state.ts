@@ -236,6 +236,19 @@ export function applyClarificationCommand(
   }
 }
 
+// One-line summary for the collapsed clarification_state tool result. The full
+// gate summary is verbose internal runtime state, so the transcript only shows
+// status / checklist progress / gate verdict; expand for the full breakdown.
+export function renderClarificationOneLine(state: ClarificationState): string {
+  const total = state.checklist.length;
+  const done = state.checklist.filter((item) => item.status !== "open").length;
+  const openBlocking = state.ambiguities.filter((item) => item.blocking && item.status === "open").length;
+  const gate = getClarificationGateIssues(state).length === 0 ? "PASS" : "BLOCKED";
+  const parts = [state.status, `checklist ${done}/${total}`, `Gate: ${gate}`];
+  if (openBlocking > 0) parts.push(`${openBlocking} blocking`);
+  return `clarification: ${parts.join(" · ")}`;
+}
+
 export function renderClarificationGateSummary(state: ClarificationState): string {
   const checklist = state.checklist.map((item) => `${item.status === "open" ? "[ ]" : item.status === "accepted_risk" ? "[risk]" : "[x]"} ${item.label}${item.value ? ` — ${item.value}` : ""}`);
   const ambiguities = state.ambiguities.length === 0

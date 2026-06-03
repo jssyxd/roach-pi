@@ -4,6 +4,7 @@ import { Text } from "@mariozechner/pi-tui";
 import { getBashWarnings } from "../bash-warnings.ts";
 import { getObjectValue, getTextContent, isTruncated } from "../data.ts";
 import {
+  compactResultLine,
   countLabel,
   hiddenPreviewExpandHint,
   previewFooter,
@@ -59,6 +60,8 @@ export function registerBash(pi: ExtensionAPI, cwd: string) {
               theme.fg(context.isError ? "error" : "toolOutput", escapeControlChars(line)),
             )
         : [];
+      if (!expanded && !context.isError && codePreviewSettings.compactPreviews && lines.length > 0)
+        return new Text(compactResultLine(theme, countLabel(lines.length, "output line")), 0, 0);
       const limit = expanded ? lines.length : 8;
       const preview = previewLines(lines, limit, theme);
       let text = preview.lines.length

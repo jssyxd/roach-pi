@@ -1,7 +1,5 @@
 import type { GoalItem, GoalState, GoalVerifierReceipt, SubgoalItem } from "./goal-state.js";
 
-export const GOAL_CONTINUATION_MAX_CONSECUTIVE_FAILURES = 3;
-
 export interface GoalContinuationPolicyContext {
   isRootSession: boolean;
   isTeamWorker: boolean;
@@ -31,10 +29,6 @@ export function planGoalContinuation(
   if (state.continuation.queued || state.continuation.leaseId) return { action: "none", reason: "continuation already queued" };
 
   if (receipt.verdict === "FAIL") {
-    const failureCount = consecutiveFailureCount(state, receipt.targetType, receipt.targetId);
-    if (failureCount >= GOAL_CONTINUATION_MAX_CONSECUTIVE_FAILURES) {
-      return { action: "none", reason: "max verifier failures reached" };
-    }
     return {
       action: "follow_up",
       reason: "verifier_fail",
@@ -122,17 +116,6 @@ function findNextRunnableTarget(state: GoalState, receipt: GoalVerifierReceipt):
   const queuedGoal = state.goals.find((goal) => goal.status === "queued");
   if (queuedGoal) return goalTarget(queuedGoal);
   return undefined;
-}
-
-function consecutiveFailureCount(state: GoalState, targetType: "goal" | "subgoal", targetId: string): number {
-  const target = findTarget(state, targetType, targetId);
-  const receipts = target?.targetType === "subgoal" ? target.subgoal.verifierReceipts : target?.goal.verifierReceipts ?? [];
-  let count = 0;
-  for (let index = receipts.length - 1; index >= 0; index -= 1) {
-    if (receipts[index].verdict !== "FAIL") break;
-    count += 1;
-  }
-  return count;
 }
 
 function findTarget(

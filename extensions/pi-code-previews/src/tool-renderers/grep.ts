@@ -3,6 +3,8 @@ import { createGrepToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { getTextContent } from "../data.ts";
 import {
+  compactResultLine,
+  countLabel,
   hiddenPreviewExpandHint,
   metadata,
   previewFooter,
@@ -53,6 +55,11 @@ export function registerGrep(pi: ExtensionAPI, cwd: string) {
         return new Text(hiddenPreviewExpandHint(theme), 0, 0);
       if (!output || output === "No matches found")
         return new Text(theme.fg("muted", output || "No matches found"), 0, 0);
+
+      if (!expanded && codePreviewSettings.compactPreviews) {
+        const count = output.split("\n").length;
+        return new Text(compactResultLine(theme, countLabel(count, "grep output line")), 0, 0);
+      }
 
       const pattern = typeof context.args?.pattern === "string" ? context.args.pattern : "";
       const rawLines = output.split("\n");

@@ -39,6 +39,7 @@ export default async function codePreviews(pi: ExtensionAPI) {
         `Shiki initialized: ${status.initialized ? "yes" : "no"}`,
         `Shiki theme: ${codePreviewSettings.shikiTheme}`,
         `Syntax highlighting: ${codePreviewSettings.syntaxHighlighting ? "on" : "off"}`,
+        `Compact tool output: ${codePreviewSettings.compactPreviews ? "on" : "off"}`,
         `Read content preview: ${codePreviewSettings.readContentPreview ? "on" : "off"}`,
         `Grep result preview: ${codePreviewSettings.grepResultPreview ? "on" : "off"}`,
         `Find result preview: ${codePreviewSettings.findResultPreview ? "on" : "off"}`,
@@ -178,6 +179,7 @@ function syncSettingsListValues(list: SettingsList): void {
   list.updateValue("shikiTheme", codePreviewSettings.shikiTheme);
   list.updateValue("diffIntensity", codePreviewSettings.diffIntensity);
   list.updateValue("wordEmphasis", codePreviewSettings.wordEmphasis);
+  list.updateValue("compactPreviews", codePreviewSettings.compactPreviews ? "on" : "off");
   list.updateValue("tools", codePreviewSettings.tools.join(", "));
   list.updateValue("readContentPreview", codePreviewSettings.readContentPreview ? "on" : "off");
   list.updateValue("readCollapsedLines", String(codePreviewSettings.readCollapsedLines));
