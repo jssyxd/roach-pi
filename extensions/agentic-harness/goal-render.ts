@@ -43,10 +43,19 @@ export function renderGoalStatus(state: GoalState): string {
 export function renderGoalSummary(state: GoalState): string | undefined {
   const activeGoal = getActiveGoal(state);
   if (!activeGoal) return undefined;
-  const activeSubgoals = activeGoal.subgoals.filter((subgoal) => subgoal.status === "active").length;
-  const receipt = latestReceipt(activeGoal);
-  const verifierStatus = receipt ? `verify:${receipt.verdict.toLowerCase()}` : "verify:pending";
-  return `${activeGoal.id} | ${verifierStatus} | subgoals:${activeSubgoals}/${activeGoal.subgoals.length} | ${activeGoal.title}`;
+  // Title-led, label-free footer summary. The goal id and the `verify:`/`subgoals:`
+  // labels are dropped as noise; only an actionable verdict mark (✗ fail / ✓ pass —
+  // pending is the silent default) and a compact active/total subgoal count lead the
+  // title, so the important signal survives even when a long title gets truncated.
+  const parts: string[] = [];
+  const verdict = latestReceipt(activeGoal)?.verdict.toLowerCase();
+  if (verdict === "fail") parts.push("✗");
+  else if (verdict === "pass") parts.push("✓");
+  if (activeGoal.subgoals.length > 0) {
+    const activeSubgoals = activeGoal.subgoals.filter((subgoal) => subgoal.status === "active").length;
+    parts.push(`${activeSubgoals}/${activeGoal.subgoals.length}`);
+  }
+  return parts.length > 0 ? `${parts.join(" ")} · ${activeGoal.title}` : activeGoal.title;
 }
 
 function getActiveGoal(state: GoalState): GoalItem | undefined {

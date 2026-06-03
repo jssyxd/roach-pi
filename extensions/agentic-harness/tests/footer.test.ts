@@ -93,7 +93,6 @@ describe("RoachFooter Powerline styling", () => {
     expect(rendered).toContain(ICONS.branch);
     expect(rendered).toContain(ICONS.model);
     expect(rendered).toContain(ICONS.logo);
-    expect(rendered).toContain(ICONS.thinking);
   });
 
   it("renders solid background blocks with 48;2 ANSI sequences", () => {
@@ -152,17 +151,47 @@ describe("RoachFooter status bridge", () => {
     const footer = createFooter();
     const lines = footer.render(150);
 
-    expect(lines.length).toBe(2);
+    // border + identity row + live-metrics row (context/cache)
+    expect(lines.length).toBe(3);
     const rendered = lines.join("\n");
     const plain = rendered.replace(/\x1b\[[0-9;]*m/g, "");
     expect(plain).toContain("powerline-project");
     expect(plain).toContain("main");
     expect(plain).toContain("test-model");
-    expect(plain).toContain("thinking:high");
+    expect(plain).not.toContain("thinking:");
     expect(plain).toContain("42k/200k");
     expect(plain).toContain("cache 33%");
     expect(plain).toContain("read");
     expectAllLinesFit(lines, 150);
+  });
+
+  it("renders a per-turn cache rate alongside the session average", () => {
+    const footer = new RoachFooter(
+      stubTheme,
+      footerData(),
+      {
+        cwd: "/tmp/powerline-project",
+        getModelName: () => "test-model",
+        getContextUsage: () => ({ tokens: 42_000, contextWindow: 200_000, percent: 21 }),
+        getGitStats: () => ({ ahead: 0, behind: 0, dirty: 0, untracked: 0 }),
+        getThinkingLevel: () => "high",
+        getModelInfo: () => ({ name: "test-model", isLatest: false }),
+      },
+      // turn: 90/(10+90) = 90%; session: 50/(100+50) = 33%
+      { totalInput: 100, totalCacheRead: 50, lastInput: 10, lastCacheRead: 90 },
+      { running: new Map() },
+      null,
+    );
+
+    const plain = footer.render(150).join("\n").replace(/\x1b\[[0-9;]*m/g, "");
+    expect(plain).toContain("cache 90% · avg 33%");
+  });
+
+  it("falls back to the session cache rate when no turn telemetry exists yet", () => {
+    // createFooter's stats have no last* fields → session-only display.
+    const plain = createFooter().render(150).join("\n").replace(/\x1b\[[0-9;]*m/g, "");
+    expect(plain).toContain("cache 33%");
+    expect(plain).not.toContain("avg");
   });
 
   it("renders one extension status from footerData.getExtensionStatuses", () => {
@@ -308,7 +337,7 @@ describe("RoachFooter status bridge", () => {
     const compactLines = createFooter(statuses, "compact").render(150);
     const minimalLines = createFooter(statuses, "minimal").render(150);
 
-    expect(defaultLines.length).toBe(2);
+    expect(defaultLines.length).toBe(3);
     expect(compactLines.length).toBe(2);
     expect(minimalLines.length).toBe(2);
     expect(defaultLines.join("\n")).toContain("42k/200k");
@@ -349,11 +378,13 @@ describe("RoachFooter status bridge", () => {
     expect(rendered).toContain("Opus 4.5 (latest)");
   });
 
-  it("hides thinking segment when level is off", () => {
-    const footer = createFooter(new Map(), "default", { ahead: 0, behind: 0, dirty: 0, untracked: 0 }, "off");
-    const rendered = footer.render(100).join("\n");
-
-    expect(rendered).not.toContain("thinking:");
+  it("never renders a thinking segment, at any level", () => {
+    for (const level of ["off", "high", "xhigh"] as const) {
+      const rendered = createFooter(new Map(), "default", { ahead: 0, behind: 0, dirty: 0, untracked: 0 }, level)
+        .render(150)
+        .join("\n");
+      expect(rendered).not.toContain("thinking:");
+    }
   });
 
   it("renders active tool intent text in the tools segment", () => {

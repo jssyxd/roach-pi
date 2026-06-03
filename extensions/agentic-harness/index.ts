@@ -105,7 +105,7 @@ function normalizeWorkflowPhase(phase: string): WorkflowPhase | undefined {
 }
 
 
-const cacheStats: CacheStats = { totalInput: 0, totalCacheRead: 0 };
+const cacheStats: CacheStats = { totalInput: 0, totalCacheRead: 0, lastInput: 0, lastCacheRead: 0 };
 const activeTools: ActiveTools = { running: new Map() };
 
 async function computeGitStats(cwd: string): Promise<GitStats> {
@@ -2255,6 +2255,10 @@ Do not start multi-step implementation without a clear understanding of what the
       if (usage) {
         cacheStats.totalInput += usage.input;
         cacheStats.totalCacheRead += usage.cacheRead;
+        // Keep this turn's telemetry so the footer can show a per-turn cache rate
+        // alongside the session average.
+        cacheStats.lastInput = usage.input;
+        cacheStats.lastCacheRead = usage.cacheRead;
       }
       stopWorkingMessageShimmer();
     }
@@ -2314,6 +2318,8 @@ Do not start multi-step implementation without a clear understanding of what the
 
     cacheStats.totalInput = 0;
     cacheStats.totalCacheRead = 0;
+    cacheStats.lastInput = 0;
+    cacheStats.lastCacheRead = 0;
     activeTools.running.clear();
     stopWorkingMessageShimmer();
     toolCallArgsById.clear();

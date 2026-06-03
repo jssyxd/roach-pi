@@ -157,6 +157,6 @@ describe("goal renderer", () => {
     expect(rendered).toContain("blocker: Missing invalid input coverage");
     expect(rendered).toContain("Latest verifier receipt: FAIL receipt-1");
     expect(rendered).toContain("Next action: fix blockers, add evidence, then /goal complete subgoal-1");
-    expect(renderGoalSummary(state)).toBe("goal-1 | verify:fail | subgoals:0/1 | Goal 1");
+    expect(renderGoalSummary(state)).toBe("✗ 0/1 · Goal 1");
   });
 });

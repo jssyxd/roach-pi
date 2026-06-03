@@ -33,6 +33,11 @@ export interface FooterContext {
 export interface CacheStats {
   totalInput: number;
   totalCacheRead: number;
+  // Most recent turn's telemetry, so the footer can show a per-turn cache-hit
+  // rate next to the session average. Optional: absent until the first turn
+  // (and in older call sites), in which case only the session rate is shown.
+  lastInput?: number;
+  lastCacheRead?: number;
 }
 
 export interface ActiveToolStatus {
@@ -104,7 +109,10 @@ function getIcons(glyphs?: FooterGlyphMode) {
 // Presets
 
 const FOOTER_PRESET_DEFINITIONS: Record<FooterPresetName, FooterPresetDefinition> = {
-  default:  { lines: [["logo", "goal", "model", "thinking", "path", "git", "context", "cache", "tools", "statuses"]] },
+  // Two rows: an identity/status row (which may truncate long goal/tool/status
+  // text) and a dedicated live-metrics row so context + cache rate are never
+  // pushed off-screen by a long goal summary.
+  default:  { lines: [["logo", "goal", "model", "path", "git", "tools", "statuses"], ["context", "cache"]] },
   compact:  { lines: [["logo", "goal", "model", "path", "git", "context", "cache", "statuses"]] },
   minimal:  { lines: [["logo", "goal", "path", "git", "context", "statuses"]] },
 };
@@ -364,7 +372,6 @@ export class RoachFooter implements Component {
     const modelDisplay = modelInfo?.isLatest ? `${modelName} (latest)` : modelName;
     const usage = this.footerCtx.getContextUsage();
     const gitStats = this.footerCtx.getGitStats();
-    const thinkingLevel = this.footerCtx.getThinkingLevel();
 
     const pct = usage?.percent ?? 0;
     const tokens = usage?.tokens ?? 0;
@@ -372,11 +379,22 @@ export class RoachFooter implements Component {
     const tokK = Math.round(tokens / 1000);
     const ctxPart = `${tokK}k/${ctxK}k`;
 
-    const totalTokens = this.cacheStats.totalInput + this.cacheStats.totalCacheRead;
-    const cacheRate = totalTokens > 0 ? Math.round((this.cacheStats.totalCacheRead / totalTokens) * 100) : 0;
+    // Session-cumulative cache-hit rate (steady, cost-oriented) and the latest
+    // turn's rate (live, the cache-first loop's heartbeat). The turn rate leads;
+    // the session average trails as faint context — mirroring roach-code's
+    // "cache N% · avg N%" status tag.
+    const sessionTotal = this.cacheStats.totalInput + this.cacheStats.totalCacheRead;
+    const sessionRate = sessionTotal > 0 ? Math.round((this.cacheStats.totalCacheRead / sessionTotal) * 100) : 0;
+    const lastInput = this.cacheStats.lastInput ?? 0;
+    const lastCacheRead = this.cacheStats.lastCacheRead ?? 0;
+    const turnTotal = lastInput + lastCacheRead;
+    const turnRate = turnTotal > 0 ? Math.round((lastCacheRead / turnTotal) * 100) : null;
+    const cacheText = turnRate !== null ? `cache ${turnRate}% · avg ${sessionRate}%` : `cache ${sessionRate}%`;
+    // Colour on whichever rate is leading the display.
+    const primaryRate = turnRate ?? sessionRate;
     let cacheColor: ThemeColor;
-    if (cacheRate >= 50) cacheColor = "success";
-    else if (cacheRate >= 20) cacheColor = "warning";
+    if (primaryRate >= 50) cacheColor = "success";
+    else if (primaryRate >= 20) cacheColor = "warning";
     else cacheColor = "dim";
 
     const segs = new Map<FooterSegmentId, FooterSegment>();
@@ -400,12 +418,8 @@ export class RoachFooter implements Component {
 
     segs.set("model", { id: "model", text: modelDisplay, icon: icons.model, color: "model", priority: 2 });
 
-    if (thinkingLevel && thinkingLevel !== "off") {
-      segs.set("thinking", { id: "thinking", text: `thinking:${thinkingLevel}`, icon: icons.thinking, color: "thinking", priority: 3 });
-    }
-
     segs.set("context", { id: "context", text: ctxPart, icon: icons.context, color: "context", priority: 0 });
-    segs.set("cache", { id: "cache", text: `cache ${cacheRate}%`, icon: icons.cache, color: cacheColor, priority: 5 });
+    segs.set("cache", { id: "cache", text: cacheText, icon: icons.cache, color: cacheColor, priority: 5 });
 
     const goalSummary = this.getGoalSummary();
     if (goalSummary) {
