@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.38.0](https://github.com/tmdgusya/roach-pi/compare/v1.37.0...v1.38.0) (2026-06-07)
+
+### Features
+
+* **harness:** animate welcome banner shimmer ([91ab405](https://github.com/tmdgusya/roach-pi/commit/91ab405d5e9366fe002a3f1a847f395ab2bb5bee))
+
 ## [1.37.0](https://github.com/tmdgusya/roach-pi/compare/v1.36.0...v1.37.0) (2026-06-03)
 
 ### Features
